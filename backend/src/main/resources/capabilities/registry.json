@@ -1,0 +1,45 @@
+{
+  "registryVersion": "2026.10.0",
+  "formats": [
+    {
+      "formatId": "markdown",
+      "displayName": "Markdown",
+      "extensions": [".md", ".markdown"],
+      "mimeTypes": ["text/markdown", "text/x-markdown"],
+      "ingest": "supported",
+      "features": {
+        "headings": "supported",
+        "paragraphs": "supported",
+        "lists": "supported",
+        "tables": "partial",
+        "taskLists": "partial",
+        "codeBlocks": "supported",
+        "remoteImages": "unsupported"
+      },
+      "adapterId": "markdown-commonmark-gfm",
+      "adapterVersion": "1.0.0"
+    },
+    {
+      "formatId": "plain-text",
+      "displayName": "Plain text",
+      "extensions": [".txt", ".text"],
+      "mimeTypes": ["text/plain"],
+      "ingest": "supported",
+      "features": {
+        "headings": "partial",
+        "paragraphs": "supported",
+        "lists": "partial",
+        "tables": "unsupported",
+        "taskLists": "unsupported",
+        "codeBlocks": "unsupported",
+        "remoteImages": "unsupported"
+      },
+      "adapterId": "plain-text-heuristic",
+      "adapterVersion": "1.0.0"
+    }
+  ],
+  "exports": {
+    "note": "Export converters planned for Phase 4 (markdown + sanitized HTML). PDF later.",
+    "converters": []
+  }
+}
