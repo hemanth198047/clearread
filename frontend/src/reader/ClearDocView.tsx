@@ -1,4 +1,6 @@
-import type { ReactNode } from "react";
+import { useMemo, useState, type ReactNode, type RefObject } from "react";
+import type { ReaderPreferences } from "./preferences";
+import { segmentBody } from "./segmentation";
 
 export type ClearDoc = {
   metadata: { title: string };
@@ -9,22 +11,51 @@ export type ClearDoc = {
 
 type Inline = Record<string, unknown>;
 
-function renderInlines(nodes: Inline[] | undefined): ReactNode {
+function highlightText(value: string, query: string, currentIndex: number, hitCounter: { n: number }): ReactNode {
+  if (!query) return value;
+  const lower = value.toLowerCase();
+  const q = query.toLowerCase();
+  const parts: ReactNode[] = [];
+  let start = 0;
+  let idx = lower.indexOf(q, start);
+  while (idx >= 0) {
+    if (idx > start) parts.push(value.slice(start, idx));
+    const hitIdx = hitCounter.n++;
+    parts.push(
+      <mark key={`h-${hitIdx}`} className={hitIdx === currentIndex ? "cr-hit current" : "cr-hit"} data-hit={hitIdx}>
+        {value.slice(idx, idx + query.length)}
+      </mark>
+    );
+    start = idx + query.length;
+    idx = lower.indexOf(q, start);
+  }
+  if (start < value.length) parts.push(value.slice(start));
+  return parts.length ? parts : value;
+}
+
+function renderInlines(
+  nodes: Inline[] | undefined,
+  query: string,
+  currentHit: number,
+  hitCounter: { n: number }
+): ReactNode {
   if (!nodes) return null;
   return nodes.map((n, i) => {
     if (n.type === "text") {
-      let el: ReactNode = String(n.value ?? "");
+      let el: ReactNode = highlightText(String(n.value ?? ""), query, currentHit, hitCounter);
       const marks = (n.marks as string[] | undefined) ?? [];
       if (marks.includes("bold")) el = <strong key={`b${i}`}>{el}</strong>;
       if (marks.includes("italic")) el = <em key={`i${i}`}>{el}</em>;
       return <span key={i}>{el}</span>;
     }
-    if (n.type === "code") return <code key={i}>{String(n.value ?? "")}</code>;
+    if (n.type === "code") {
+      return <code key={i}>{highlightText(String(n.value ?? ""), query, currentHit, hitCounter)}</code>;
+    }
     if (n.type === "hardBreak") return <br key={i} />;
     if (n.type === "link") {
       return (
         <a key={i} href={String(n.href ?? "#")}>
-          {renderInlines(n.children as Inline[])}
+          {renderInlines(n.children as Inline[], query, currentHit, hitCounter)}
         </a>
       );
     }
@@ -32,7 +63,56 @@ function renderInlines(nodes: Inline[] | undefined): ReactNode {
   });
 }
 
-function Block({ node }: { node: Record<string, unknown> }) {
+function CodeBlock({
+  id,
+  text,
+  language,
+  showLineNumbers,
+}: {
+  id?: string;
+  text: string;
+  language?: string;
+  showLineNumbers: boolean;
+}) {
+  const lines = text.replace(/\n$/, "").split("\n");
+  if (!showLineNumbers) {
+    return (
+      <pre id={id} data-language={language}>
+        <code>{text}</code>
+      </pre>
+    );
+  }
+  return (
+    <pre id={id} data-language={language} className="code-with-lines">
+      <span className="gutter" aria-hidden="true">
+        {lines.map((_, i) => (
+          <div key={i}>{i + 1}</div>
+        ))}
+      </span>
+      <code>{text}</code>
+    </pre>
+  );
+}
+
+function Block({
+  node,
+  query,
+  currentHit,
+  hitCounter,
+  prefs,
+  collapsed,
+  onToggleCollapse,
+  showInferred,
+}: {
+  node: Record<string, unknown>;
+  query: string;
+  currentHit: number;
+  hitCounter: { n: number };
+  prefs: ReaderPreferences;
+  collapsed: Set<string>;
+  onToggleCollapse: (id: string) => void;
+  showInferred: boolean;
+}) {
   const type = String(node.type);
   const id = node.nodeId ? String(node.nodeId) : undefined;
   const provenance = node.provenance as { kind?: string } | undefined;
@@ -40,11 +120,24 @@ function Block({ node }: { node: Record<string, unknown> }) {
 
   if (type === "heading") {
     const level = Math.min(6, Math.max(1, Number(node.level ?? 2)));
+    const isCollapsed = id ? collapsed.has(id) : false;
     const children = (
-      <>
-        {renderInlines(node.children as Inline[])}
-        {inferred && <span className="badge"> inferred</span>}
-      </>
+      <span className="section-collapse">
+        {prefs.sectionCollapsing && id && (
+          <button
+            type="button"
+            className="collapse-toggle"
+            aria-expanded={!isCollapsed}
+            onClick={() => onToggleCollapse(id)}
+          >
+            {isCollapsed ? "+" : "−"}
+          </button>
+        )}
+        <span>
+          {renderInlines(node.children as Inline[], query, currentHit, hitCounter)}
+          {showInferred && inferred && <span className="badge-inferred"> inferred</span>}
+        </span>
+      </span>
     );
     if (level === 1) return <h1 id={id}>{children}</h1>;
     if (level === 2) return <h2 id={id}>{children}</h2>;
@@ -54,20 +147,33 @@ function Block({ node }: { node: Record<string, unknown> }) {
     return <h6 id={id}>{children}</h6>;
   }
   if (type === "paragraph") {
-    return <p id={id}>{renderInlines(node.children as Inline[])}</p>;
+    return <p id={id}>{renderInlines(node.children as Inline[], query, currentHit, hitCounter)}</p>;
   }
   if (type === "codeBlock") {
     return (
-      <pre id={id}>
-        <code>{String(node.text ?? "")}</code>
-      </pre>
+      <CodeBlock
+        id={id}
+        text={String(node.text ?? "")}
+        language={node.language ? String(node.language) : undefined}
+        showLineNumbers={prefs.showLineNumbers}
+      />
     );
   }
   if (type === "blockquote") {
     return (
       <blockquote id={id}>
         {(node.children as Record<string, unknown>[] | undefined)?.map((c, i) => (
-          <Block key={i} node={c} />
+          <Block
+            key={i}
+            node={c}
+            query={query}
+            currentHit={currentHit}
+            hitCounter={hitCounter}
+            prefs={prefs}
+            collapsed={collapsed}
+            onToggleCollapse={onToggleCollapse}
+            showInferred={showInferred}
+          />
         ))}
       </blockquote>
     );
@@ -79,7 +185,17 @@ function Block({ node }: { node: Record<string, unknown> }) {
         {((node.items as Record<string, unknown>[]) ?? []).map((item, i) => (
           <li key={i}>
             {((item.children as Record<string, unknown>[]) ?? []).map((c, j) => (
-              <Block key={j} node={c} />
+              <Block
+                key={j}
+                node={c}
+                query={query}
+                currentHit={currentHit}
+                hitCounter={hitCounter}
+                prefs={prefs}
+                collapsed={collapsed}
+                onToggleCollapse={onToggleCollapse}
+                showInferred={showInferred}
+              />
             ))}
           </li>
         ))}
@@ -96,34 +212,139 @@ function Block({ node }: { node: Record<string, unknown> }) {
   );
 }
 
-export function ClearDocView({ doc }: { doc: ClearDoc }) {
+/** Apply section collapsing: hide blocks until next heading of same/higher level. */
+function applyCollapse(body: Record<string, unknown>[], collapsed: Set<string>): Record<string, unknown>[] {
+  if (collapsed.size === 0) return body;
+  const out: Record<string, unknown>[] = [];
+  let hidingUntilLevel: number | null = null;
+  for (const node of body) {
+    if (node.type === "heading") {
+      const level = Number(node.level ?? 2);
+      const id = node.nodeId ? String(node.nodeId) : "";
+      if (hidingUntilLevel != null && level > hidingUntilLevel) {
+        continue;
+      }
+      hidingUntilLevel = null;
+      out.push(node);
+      if (id && collapsed.has(id)) {
+        hidingUntilLevel = level;
+      }
+      continue;
+    }
+    if (hidingUntilLevel != null) continue;
+    out.push(node);
+  }
+  return out;
+}
+
+const CHUNK = 80;
+
+export function ClearDocView({
+  doc,
+  prefs,
+  query = "",
+  currentHit = -1,
+  scrollParentRef,
+}: {
+  doc: ClearDoc;
+  prefs: ReaderPreferences;
+  query?: string;
+  currentHit?: number;
+  scrollParentRef?: RefObject<HTMLElement | null>;
+}) {
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [visibleCount, setVisibleCount] = useState(CHUNK);
+  const hitCounter = { n: 0 };
+  const showInferred = prefs.segmentation === "detailed";
+
+  const body = useMemo(() => {
+    const segmented = segmentBody(doc, prefs.segmentation);
+    return applyCollapse(segmented, collapsed);
+  }, [doc, prefs.segmentation, collapsed]);
+
+  const slice = body.slice(0, visibleCount);
+
+  const onToggleCollapse = (id: string) => {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  // Progressive reveal for large documents (keeps find/nav usable)
+  const onScroll = () => {
+    const el = scrollParentRef?.current;
+    if (!el) return;
+    if (el.scrollTop + el.clientHeight > el.scrollHeight - 400 && visibleCount < body.length) {
+      setVisibleCount((c) => Math.min(body.length, c + CHUNK));
+    }
+  };
+
   return (
-    <div className="reader-layout">
-      <nav className="toc" aria-label="Table of contents">
-        <h2>Contents</h2>
-        {doc.outline.length === 0 ? (
-          <p className="muted">No headings</p>
-        ) : (
-          <ol>
-            {doc.outline.map((o) => (
-              <li key={o.nodeId} style={{ marginLeft: `${(o.level - 1) * 0.6}rem` }}>
-                <a href={`#${o.nodeId}`}>{o.text}</a>
-              </li>
-            ))}
-          </ol>
-        )}
-      </nav>
-      <article className="reader-article">
-        <h1>{doc.metadata?.title ?? "Document"}</h1>
-        {doc.warnings?.length > 0 && (
-          <p className="muted">
-            {doc.warnings.length} processing note{doc.warnings.length === 1 ? "" : "s"} (structure may be inferred).
-          </p>
-        )}
-        {doc.body.map((node, i) => (
-          <Block key={i} node={node} />
-        ))}
-      </article>
-    </div>
+    <article
+      id="reader-article"
+      className="reader-article"
+      onScroll={onScroll}
+      aria-label={doc.metadata?.title ?? "Document"}
+    >
+      <h1>{doc.metadata?.title ?? "Document"}</h1>
+      {doc.warnings?.length > 0 && showInferred && (
+        <p style={{ color: "var(--reader-muted)", fontFamily: "var(--reader-font-ui)", fontSize: "0.9rem" }}>
+          {doc.warnings.length} processing note{doc.warnings.length === 1 ? "" : "s"} (structure may be inferred).
+        </p>
+      )}
+      {slice.map((node, i) => (
+        <Block
+          key={String(node.nodeId ?? i)}
+          node={node}
+          query={query}
+          currentHit={currentHit}
+          hitCounter={hitCounter}
+          prefs={prefs}
+          collapsed={collapsed}
+          onToggleCollapse={onToggleCollapse}
+          showInferred={showInferred}
+        />
+      ))}
+      {visibleCount < body.length && (
+        <p style={{ fontFamily: "var(--reader-font-ui)", color: "var(--reader-muted)" }}>
+          <button type="button" className="collapse-toggle" onClick={() => setVisibleCount(body.length)}>
+            Show remaining {body.length - visibleCount} blocks
+          </button>
+        </p>
+      )}
+    </article>
   );
+}
+
+export function countHits(doc: ClearDoc, query: string, prefs: ReaderPreferences): number {
+  if (!query) return 0;
+  const q = query.toLowerCase();
+  let n = 0;
+  const walk = (nodes: unknown) => {
+    if (!nodes) return;
+    if (typeof nodes === "string") {
+      let i = nodes.toLowerCase().indexOf(q);
+      while (i >= 0) {
+        n++;
+        i = nodes.toLowerCase().indexOf(q, i + q.length);
+      }
+      return;
+    }
+    if (Array.isArray(nodes)) {
+      nodes.forEach(walk);
+      return;
+    }
+    if (typeof nodes === "object") {
+      const o = nodes as Record<string, unknown>;
+      if (typeof o.value === "string") walk(o.value);
+      if (typeof o.text === "string") walk(o.text);
+      walk(o.children);
+      walk(o.items);
+    }
+  };
+  walk(segmentBody(doc, prefs.segmentation));
+  return n;
 }

@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { apiFetch } from "../api/client";
 import { useAuth } from "../auth/AuthProvider";
-import { ClearDocView, type ClearDoc } from "../reader/ClearDocView";
+import type { ClearDoc } from "../reader/ClearDocView";
+import { ReaderShell } from "../reader/ReaderShell";
 
 type DocMeta = {
   id: string;
@@ -10,6 +11,7 @@ type DocMeta = {
   status: string;
   originalSha256: string;
   formatId: string;
+  currentRevisionId?: string;
 };
 
 export function ReaderPage() {
@@ -18,6 +20,7 @@ export function ReaderPage() {
   const token = auth.getAccessToken();
   const [meta, setMeta] = useState<DocMeta | null>(null);
   const [doc, setDoc] = useState<ClearDoc | null>(null);
+  const [originalText, setOriginalText] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -33,7 +36,10 @@ export function ReaderPage() {
           return;
         }
         const cleardoc = (await apiFetch(`/v1/documents/${id}/cleardoc`, token)) as ClearDoc;
-        if (!cancelled) setDoc(cleardoc);
+        if (cancelled) return;
+        setDoc(cleardoc);
+        const buf = (await apiFetch(`/v1/documents/${id}/original`, token)) as ArrayBuffer;
+        if (!cancelled) setOriginalText(new TextDecoder().decode(buf));
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : String(err));
       }
@@ -60,28 +66,21 @@ export function ReaderPage() {
   }
 
   return (
-    <div>
-      <p className="muted">
-        <Link to="/">← Library</Link> · {meta.formatId} · sha256 {meta.originalSha256.slice(0, 12)}…
-        {" · "}
-        <a href={`${import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080"}/v1/documents/${meta.id}/original`}
-           onClick={async (e) => {
-             e.preventDefault();
-             if (!token) return;
-             const buf = (await apiFetch(`/v1/documents/${meta.id}/original`, token)) as ArrayBuffer;
-             const blob = new Blob([buf]);
-             const url = URL.createObjectURL(blob);
-             const a = document.createElement("a");
-             a.href = url;
-             a.download = meta.title || "original";
-             a.click();
-             URL.revokeObjectURL(url);
-           }}
-        >
-          Download original
-        </a>
-      </p>
-      <ClearDocView doc={doc} />
-    </div>
+    <ReaderShell
+      meta={meta}
+      doc={doc}
+      originalText={originalText}
+      onDownloadOriginal={async () => {
+        if (!token) return;
+        const buf = (await apiFetch(`/v1/documents/${meta.id}/original`, token)) as ArrayBuffer;
+        const blob = new Blob([buf]);
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = meta.title || "original";
+        a.click();
+        URL.revokeObjectURL(url);
+      }}
+    />
   );
 }

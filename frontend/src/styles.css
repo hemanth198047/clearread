@@ -81,6 +81,16 @@ main {
   padding: 2rem 0 3rem;
 }
 
+main.main-reader {
+  width: min(1280px, calc(100% - 1.25rem));
+  padding: 1rem 0 1.5rem;
+}
+
+.app-shell-reader .topbar {
+  background: color-mix(in srgb, var(--reader-toolbar-bg, #fff) 88%, transparent);
+  border-bottom-color: var(--reader-border, rgba(0, 0, 0, 0.08));
+}
+
 .hero {
   display: grid;
   gap: 1rem;

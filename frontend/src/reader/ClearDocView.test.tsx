@@ -1,11 +1,13 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { ClearDocView } from "./ClearDocView";
+import { DEFAULT_PREFERENCES } from "./preferences";
 
 describe("ClearDocView", () => {
-  it("renders title heading and toc", () => {
+  it("renders title heading and body", () => {
     render(
       <ClearDocView
+        prefs={DEFAULT_PREFERENCES}
         doc={{
           metadata: { title: "Sample" },
           outline: [{ level: 1, text: "Sample", nodeId: "n_1" }],
@@ -26,8 +28,7 @@ describe("ClearDocView", () => {
         }}
       />
     );
-    expect(screen.getAllByRole("heading", { level: 1, name: "Sample" }).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByRole("heading", { level: 1, name: /Sample/ }).length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("Hello body")).toBeTruthy();
-    expect(screen.getByRole("navigation", { name: "Table of contents" })).toBeTruthy();
   });
 });
