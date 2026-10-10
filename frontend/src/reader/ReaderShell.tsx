@@ -33,19 +33,22 @@ export function ReaderShell({
   originalText,
   onDownloadOriginal,
   onReprocess,
+  initialFindQuery = "",
 }: {
   meta: DocMeta;
   doc: ClearDoc;
   originalText: string | null;
   onDownloadOriginal: () => void;
   onReprocess?: () => void;
+  /** From library search `?q=` deep-link */
+  initialFindQuery?: string;
 }) {
   const { prefs, setPrefs, resetPrefs, resolvedTheme } = useReaderPreferences();
   const mainRef = useRef<HTMLDivElement>(null);
   const findRef = useRef<HTMLInputElement>(null);
   const shortcutsRef = useRef<HTMLDialogElement>(null);
-  const [findOpen, setFindOpen] = useState(false);
-  const [query, setQuery] = useState("");
+  const [findOpen, setFindOpen] = useState(Boolean(initialFindQuery.trim()));
+  const [query, setQuery] = useState(initialFindQuery);
   const [currentHit, setCurrentHit] = useState(0);
   const [prefsOpen, setPrefsOpen] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -56,20 +59,26 @@ export function ReaderShell({
   const outline = useMemo(() => segmentOutline(doc, prefs.segmentation), [doc, prefs.segmentation]);
   const hitCount = useMemo(() => countHits(doc, query, prefs), [doc, query, prefs]);
 
-  // Deep link + scroll restoration
+  // Deep link + scroll restoration + library search handoff
   useEffect(() => {
     const el = mainRef.current;
     if (!el) return;
+    if (initialFindQuery.trim()) {
+      setFindOpen(true);
+      setQuery(initialFindQuery);
+      queueMicrotask(() => findRef.current?.focus());
+    }
     const hash = location.hash.replace(/^#/, "");
     if (hash) {
       const target = el.querySelector(`#${CSS.escape(hash)}`);
       target?.scrollIntoView({ block: "start" });
       return;
     }
+    if (initialFindQuery.trim()) return;
     const key = SCROLL_KEY_PREFIX + meta.id;
     const saved = sessionStorage.getItem(key);
     if (saved) el.scrollTop = Number(saved) || 0;
-  }, [location.hash, meta.id, doc, prefs.viewMode]);
+  }, [location.hash, meta.id, doc, prefs.viewMode, initialFindQuery]);
 
   const onMainScroll = useCallback(() => {
     const el = mainRef.current;

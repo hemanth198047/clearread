@@ -137,7 +137,7 @@ public class DocumentRepository {
                 "SELECT source_url FROM document_sources WHERE tenant_id = ? AND document_id = ?",
                 (rs, rowNum) -> rs.getString("source_url"),
                 tenantId, documentId
-        ).stream().findFirst();
+        ).stream().filter(s -> s != null && !s.isBlank()).findFirst();
     }
 
     public Optional<String> findFetchMeta(UUID tenantId, UUID documentId) {
@@ -145,7 +145,7 @@ public class DocumentRepository {
                 "SELECT fetch_meta_json::text FROM document_sources WHERE tenant_id = ? AND document_id = ?",
                 (rs, rowNum) -> rs.getString(1),
                 tenantId, documentId
-        ).stream().findFirst();
+        ).stream().filter(s -> s != null && !s.isBlank()).findFirst();
     }
 
     public void updateStatus(UUID tenantId, UUID documentId, String status) {

@@ -19,5 +19,6 @@ class SecurityHeadersFilterTest {
         assertThat(res.getHeader("X-Frame-Options")).isEqualTo("DENY");
         assertThat(res.getHeader("Referrer-Policy")).isEqualTo("strict-origin-when-cross-origin");
         assertThat(res.getHeader("Permissions-Policy")).contains("camera=()");
+        assertThat(res.getHeader("Content-Security-Policy")).contains("default-src 'none'");
     }
 }

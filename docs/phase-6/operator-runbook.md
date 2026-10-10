@@ -12,7 +12,7 @@
 
 ## Capability honesty
 
-UI and `/v1/capabilities` must only claim formats registered in `capabilities/registry.json`. Unsupported uploads are rejected. PDF export remains a documented seam, not registered.
+UI and `/v1/capabilities` must only claim formats registered in `capabilities/registry.json`. Unsupported uploads are rejected. PDF export is a **constrained text PDF** converter (`cleardoc-to-pdf-constrained`) — generated artifact only, not a pixel-perfect print engine.
 
 ## IdP
 

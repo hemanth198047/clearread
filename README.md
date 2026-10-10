@@ -136,5 +136,5 @@ See [docs/phase-6/operator-runbook.md](docs/phase-6/operator-runbook.md). Backup
 1. Preserve original bytes (checksummed, downloadable).
 2. Derived ClearDoc structure carries provenance (`source` / `inferred`).
 3. Capability registry is the only honest claim of format support.
-4. Conversion/export to other readable formats (MD + HTML); PDF later.
+4. Conversion/export to other readable formats (MD + HTML + constrained PDF); originals remain separate.
 5. AI is optional and never required for the core reader path.
