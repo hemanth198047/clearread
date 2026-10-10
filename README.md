@@ -100,13 +100,31 @@ cd frontend && npm test
 
 ## Phase status
 
-See [docs/phase-1/status.md](docs/phase-1/status.md). Phase 0 package (approvals, architecture) lives in the project agent store; this repo implements Phase 1.
+Phases **1–6** are implemented on this repository:
 
-**Do not start Phase 2 until Phase 1 exit is approved.**
+| Phase | Docs |
+| --- | --- |
+| 1 Vertical slice | [docs/phase-1/](docs/phase-1/) |
+| 2 Reader experience | [docs/phase-2/](docs/phase-2/) |
+| 3 URL + formats | [docs/phase-3/](docs/phase-3/) |
+| 4 Org workflows | [docs/phase-4/](docs/phase-4/) |
+| 5 Optional AI | [docs/phase-5/](docs/phase-5/) |
+| 6 Production hardening | [docs/phase-6/](docs/phase-6/) |
+
+Phase 0 architecture package lives in the project agent store.
+
+### Optional AI (Phase 5)
+
+AI is **off by default**. Enable in Admin → Optional AI enrichment (mock-local for demos). See [docs/phase-5/exit-package.md](docs/phase-5/exit-package.md).
+
+### Operators (Phase 6)
+
+See [docs/phase-6/operator-runbook.md](docs/phase-6/operator-runbook.md). Backup: `./scripts/backup.sh`.
 
 ## Principles
 
 1. Preserve original bytes (checksummed, downloadable).
 2. Derived ClearDoc structure carries provenance (`source` / `inferred`).
 3. Capability registry is the only honest claim of format support.
-4. Conversion/export to other readable formats is a product requirement (MD + HTML in Phase 4; PDF later) — not implemented as a full suite in Phase 1.
+4. Conversion/export to other readable formats (MD + HTML); PDF later.
+5. AI is optional and never required for the core reader path.

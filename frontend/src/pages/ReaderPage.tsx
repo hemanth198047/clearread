@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { apiFetch } from "../api/client";
 import { useAuth } from "../auth/AuthProvider";
 import type { ClearDoc } from "../reader/ClearDocView";
+import { EnrichmentReview } from "../reader/EnrichmentReview";
 import { ReaderShell } from "../reader/ReaderShell";
 
 type DocMeta = {
@@ -14,6 +15,19 @@ type DocMeta = {
   currentRevisionId?: string;
 };
 
+type AcceptedEnrichment = {
+  id: string;
+  kind: string;
+  status: string;
+  providerId: string;
+  modelId: string;
+  promptVersion: string;
+  generatedLabel: string;
+  lastError: string;
+  proposal: Record<string, unknown> | null;
+  validation: { warnings?: string[]; errors?: string[] } | null;
+};
+
 export function ReaderPage() {
   const { id } = useParams();
   const auth = useAuth();
@@ -22,6 +36,7 @@ export function ReaderPage() {
   const [doc, setDoc] = useState<ClearDoc | null>(null);
   const [originalText, setOriginalText] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [acceptedOverlay, setAcceptedOverlay] = useState<AcceptedEnrichment | null>(null);
 
   useEffect(() => {
     if (!id || !token) return;
@@ -117,45 +132,66 @@ export function ReaderPage() {
           Share / preview
         </button>
       </div>
-    <ReaderShell
-      meta={meta}
-      doc={doc}
-      originalText={originalText}
-      onDownloadOriginal={async () => {
-        if (!token) return;
-        const buf = (await apiFetch(`/v1/documents/${meta.id}/original`, token)) as ArrayBuffer;
-        const blob = new Blob([buf]);
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = meta.title || "original";
-        a.click();
-        URL.revokeObjectURL(url);
-      }}
-      onReprocess={async () => {
-        if (!token || !meta) return;
-        setDoc(null);
-        setError("Reprocessing…");
-        await apiFetch(`/v1/documents/${meta.id}/reprocess`, token, { method: "POST", body: "{}" });
-        for (let i = 0; i < 80; i++) {
-          await new Promise((r) => setTimeout(r, 400));
-          const next = (await apiFetch(`/v1/documents/${meta.id}`, token)) as DocMeta;
-          setMeta(next);
-          if (next.status === "ready") {
-            const cleardoc = (await apiFetch(`/v1/documents/${meta.id}/cleardoc`, token)) as ClearDoc;
-            setDoc(cleardoc);
-            setError(null);
-            return;
+      <ReaderShell
+        meta={meta}
+        doc={doc}
+        originalText={originalText}
+        onDownloadOriginal={async () => {
+          if (!token) return;
+          const buf = (await apiFetch(`/v1/documents/${meta.id}/original`, token)) as ArrayBuffer;
+          const blob = new Blob([buf]);
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = meta.title || "original";
+          a.click();
+          URL.revokeObjectURL(url);
+        }}
+        onReprocess={async () => {
+          if (!token || !meta) return;
+          setDoc(null);
+          setAcceptedOverlay(null);
+          setError("Reprocessing…");
+          await apiFetch(`/v1/documents/${meta.id}/reprocess`, token, { method: "POST", body: "{}" });
+          for (let i = 0; i < 80; i++) {
+            await new Promise((r) => setTimeout(r, 400));
+            const next = (await apiFetch(`/v1/documents/${meta.id}`, token)) as DocMeta;
+            setMeta(next);
+            if (next.status === "ready") {
+              const cleardoc = (await apiFetch(`/v1/documents/${meta.id}/cleardoc`, token)) as ClearDoc;
+              setDoc(cleardoc);
+              setError(null);
+              return;
+            }
+            if (next.status === "failed" || next.status === "cancelled") {
+              setError(`Reprocess ${next.status}`);
+              return;
+            }
+            setError(`Document status: ${next.status}…`);
           }
-          if (next.status === "failed" || next.status === "cancelled") {
-            setError(`Reprocess ${next.status}`);
-            return;
-          }
-          setError(`Document status: ${next.status}…`);
-        }
-        setError("Reprocess timed out");
-      }}
-    />
+          setError("Reprocess timed out");
+        }}
+      />
+      {token && (
+        <EnrichmentReview
+          documentId={meta.id}
+          token={token}
+          sourceOutline={doc.outline ?? []}
+          acceptedOverlay={acceptedOverlay}
+          onAccepted={setAcceptedOverlay}
+        />
+      )}
+      {acceptedOverlay?.proposal && (
+        <section className="accepted-ai-overlay" aria-label="Accepted AI overlay">
+          <h2>
+            Accepted overlay <span className="ai-badge">AI-generated</span>
+          </h2>
+          <p className="muted">
+            Kind {acceptedOverlay.kind}. This is a display overlay only — original and ClearDoc source are unchanged.
+          </p>
+          {typeof acceptedOverlay.proposal.summary === "string" && <p>{acceptedOverlay.proposal.summary}</p>}
+        </section>
+      )}
     </>
   );
 }
