@@ -67,6 +67,21 @@ clearread:
     batch-size: 5
     max-concurrent-per-tenant: 3
     worker-id: ${HOSTNAME:local-api}
+  ai:
+    # Global default; workspace ai_enabled must still be true. Core reader never requires AI.
+    default-provider: ${CLEARREAD_AI_PROVIDER:mock-local}
+    timeout-ms: ${CLEARREAD_AI_TIMEOUT_MS:15000}
+    max-retries: ${CLEARREAD_AI_MAX_RETRIES:2}
+    log-document-content: false
+    ollama:
+      enabled: ${CLEARREAD_AI_OLLAMA_ENABLED:false}
+      base-url: ${CLEARREAD_AI_OLLAMA_URL:http://127.0.0.1:11434}
+      model: ${CLEARREAD_AI_OLLAMA_MODEL:llama3.2}
+    external:
+      enabled: ${CLEARREAD_AI_EXTERNAL_ENABLED:false}
+      base-url: ${CLEARREAD_AI_EXTERNAL_URL:}
+      api-key: ${CLEARREAD_AI_EXTERNAL_API_KEY:}
+      model: ${CLEARREAD_AI_EXTERNAL_MODEL:}
   cors:
     allowed-origins: ${CLEARREAD_CORS_ORIGINS:http://localhost:5173,http://localhost:3000}
 
