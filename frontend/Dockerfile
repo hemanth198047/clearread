@@ -1,8 +1,14 @@
+# ClearRead SPA — Vite build + nginx
 FROM node:22-alpine AS build
 WORKDIR /app
+
 COPY package.json package-lock.json* ./
-RUN npm install
+RUN npm ci || npm install
+
 COPY . .
+# Normalize scripts if checked out on Windows
+RUN find . -name "*.sh" -exec sed -i 's/\r$//' {} + 2>/dev/null || true
+
 ARG VITE_API_BASE_URL=http://localhost:8080
 ARG VITE_OIDC_AUTHORITY=http://localhost:8081/realms/clearread
 ARG VITE_OIDC_CLIENT_ID=clearread-spa
@@ -15,3 +21,5 @@ FROM nginx:1.27-alpine
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/dist /usr/share/nginx/html
 EXPOSE 80
+HEALTHCHECK --interval=5s --timeout=3s --start-period=5s --retries=6 \
+  CMD wget -q -O /dev/null http://127.0.0.1/ || exit 1

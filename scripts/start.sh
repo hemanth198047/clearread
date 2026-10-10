@@ -8,8 +8,26 @@ PROJECT="clearread"
 PID_DIR="$ROOT/.clearread-run"
 mkdir -p "$PID_DIR"
 
-echo "Starting ClearRead Compose stack (project=$PROJECT)..."
-docker compose -p "$PROJECT" -f "$COMPOSE_FILE" up -d --build db minio keycloak api web
+# Ensure wrapper is executable on host (hybrid fallback)
+if [[ -f "$ROOT/backend/gradlew" ]]; then
+  chmod +x "$ROOT/backend/gradlew" || true
+  # Strip CRLF if present (safe no-op on LF)
+  if command -v sed >/dev/null 2>&1; then
+    sed -i 's/\r$//' "$ROOT/backend/gradlew" 2>/dev/null || true
+  fi
+fi
+
+echo "Building ClearRead images (project=$PROJECT)..."
+if ! docker compose -p "$PROJECT" -f "$COMPOSE_FILE" build api web; then
+  echo "ERROR: docker compose build failed." >&2
+  echo "  API Dockerfile runs: chmod +x gradlew && ./gradlew bootJar" >&2
+  echo "  Common exit 127 cause: gradlew not executable / CRLF line endings." >&2
+  echo "  Try: (cd backend && chmod +x gradlew && ./gradlew bootJar --no-daemon)" >&2
+  exit 1
+fi
+
+echo "Starting ClearRead Compose stack..."
+docker compose -p "$PROJECT" -f "$COMPOSE_FILE" up -d db minio keycloak api web
 
 echo "$PROJECT" > "$PID_DIR/compose.project"
 echo "$COMPOSE_FILE" > "$PID_DIR/compose.file"
@@ -22,6 +40,11 @@ for i in $(seq 1 90); do
     api_up=1
     break
   fi
+  # Surface container crash loops early
+  if [[ $i -eq 15 ]] || [[ $i -eq 45 ]]; then
+    docker compose -p "$PROJECT" -f "$COMPOSE_FILE" ps api || true
+    docker compose -p "$PROJECT" -f "$COMPOSE_FILE" logs --tail=40 api || true
+  fi
   sleep 2
 done
 
@@ -30,6 +53,7 @@ if [[ "$api_up" -ne 1 ]]; then
   docker compose -p "$PROJECT" -f "$COMPOSE_FILE" stop api web >/dev/null 2>&1 || true
   (
     cd "$ROOT/backend"
+    chmod +x ./gradlew || true
     export CLEARREAD_DB_URL='jdbc:postgresql://localhost:5432/clearread'
     export CLEARREAD_DB_USER=clearread
     export CLEARREAD_DB_PASSWORD=clearread
@@ -45,6 +69,9 @@ if [[ "$api_up" -ne 1 ]]; then
   )
   (
     cd "$ROOT/frontend"
+    if [[ ! -d node_modules ]]; then
+      npm install
+    fi
     nohup npm run dev -- --host 0.0.0.0 --port 5173 >"$PID_DIR/web.log" 2>&1 &
     echo $! >"$PID_DIR/web.pid"
   )
@@ -60,6 +87,7 @@ fi
 
 if [[ "$api_up" -ne 1 ]]; then
   echo "API did not become healthy. Check Compose logs or $PID_DIR/api.log" >&2
+  docker compose -p "$PROJECT" -f "$COMPOSE_FILE" logs --tail=80 api >&2 || true
   exit 1
 fi
 
@@ -70,3 +98,8 @@ echo "  API:      http://localhost:8080"
 echo "  Keycloak: http://localhost:8081 (admin/admin)"
 echo "  Demo user: demo / demo"
 echo "Stop with: ./scripts/stop.sh"
+echo
+echo "Verified local commands:"
+echo "  docker compose -p clearread -f infra/compose.yaml build api web"
+echo "  docker compose -p clearread -f infra/compose.yaml up -d"
+echo "  ./scripts/start.sh"

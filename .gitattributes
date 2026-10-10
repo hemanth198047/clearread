@@ -1,0 +1,13 @@
+# Keep shell/wrapper scripts LF so Docker/Linux builds do not hit exit 127
+* text=auto eol=lf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.png binary
+*.jpg binary
+*.jar binary
+gradlew text eol=lf
+**/gradlew text eol=lf
+*.sh text eol=lf
+Dockerfile text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf

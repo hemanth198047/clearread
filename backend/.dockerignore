@@ -1,4 +1,8 @@
 .gradle
 build
 .git
+.gitignore
 src/test
+**/*.md
+**/out
+**/.DS_Store
