@@ -16,9 +16,19 @@ Phase 1 delivers a working vertical slice: authenticate → paste/upload → imm
 # Linux / macOS
 ./scripts/start.sh
 
-# Windows
+# Windows (Git Bash / WSL preferred for gradlew LF + execute bit)
 scripts\start.bat
 ```
+
+Build images only (useful when debugging Dockerfile exit 127):
+
+```bash
+docker compose -p clearread -f infra/compose.yaml build api web
+docker compose -p clearread -f infra/compose.yaml up -d
+curl -sf http://localhost:8080/v1/health
+```
+
+If `api` build fails with **exit 127** on `./gradlew`, the wrapper was not executable or had CRLF endings. The API Dockerfile now `chmod +x` + strips CR; `.gitattributes` forces LF on `gradlew`.
 
 Then open **http://localhost:5173**
 

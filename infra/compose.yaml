@@ -90,20 +90,27 @@ services:
         condition: service_healthy
       keycloak:
         condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:8080/v1/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 18
+      start_period: 50s
     restart: on-failure
 
   web:
     build:
       context: ../frontend
       dockerfile: Dockerfile
-    environment:
-      VITE_API_BASE_URL: http://localhost:8080
-      VITE_OIDC_AUTHORITY: http://localhost:8081/realms/clearread
-      VITE_OIDC_CLIENT_ID: clearread-spa
+      args:
+        VITE_API_BASE_URL: http://localhost:8080
+        VITE_OIDC_AUTHORITY: http://localhost:8081/realms/clearread
+        VITE_OIDC_CLIENT_ID: clearread-spa
     ports:
       - "5173:80"
     depends_on:
-      - api
+      api:
+        condition: service_healthy
 
 volumes:
   clearread_pg:
