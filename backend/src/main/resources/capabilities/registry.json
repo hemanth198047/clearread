@@ -1,5 +1,5 @@
 {
-  "registryVersion": "2026.10.0",
+  "registryVersion": "2026.10.3",
   "formats": [
     {
       "formatId": "markdown",
@@ -12,9 +12,9 @@
         "paragraphs": "supported",
         "lists": "supported",
         "tables": "partial",
-        "taskLists": "partial",
         "codeBlocks": "supported",
-        "remoteImages": "unsupported"
+        "remoteImages": "unsupported",
+        "urlIngest": "supported"
       },
       "adapterId": "markdown-commonmark-gfm",
       "adapterVersion": "1.0.0"
@@ -30,14 +30,145 @@
         "paragraphs": "supported",
         "lists": "partial",
         "tables": "unsupported",
-        "taskLists": "unsupported",
         "codeBlocks": "unsupported",
-        "remoteImages": "unsupported"
+        "remoteImages": "unsupported",
+        "urlIngest": "supported"
       },
       "adapterId": "plain-text-heuristic",
       "adapterVersion": "1.0.0"
+    },
+    {
+      "formatId": "json",
+      "displayName": "JSON",
+      "extensions": [".json"],
+      "mimeTypes": ["application/json"],
+      "ingest": "supported",
+      "features": {
+        "tree": "supported",
+        "formattedSource": "supported",
+        "urlIngest": "supported"
+      },
+      "adapterId": "json-tree",
+      "adapterVersion": "1.0.0"
+    },
+    {
+      "formatId": "yaml",
+      "displayName": "YAML",
+      "extensions": [".yaml", ".yml"],
+      "mimeTypes": ["application/yaml", "text/yaml"],
+      "ingest": "supported",
+      "features": {
+        "tree": "supported",
+        "safeParse": "supported",
+        "urlIngest": "supported"
+      },
+      "adapterId": "yaml-safe",
+      "adapterVersion": "1.0.0"
+    },
+    {
+      "formatId": "xml",
+      "displayName": "XML",
+      "extensions": [".xml"],
+      "mimeTypes": ["application/xml", "text/xml"],
+      "ingest": "supported",
+      "features": {
+        "tree": "supported",
+        "xxeProtected": "supported",
+        "urlIngest": "supported"
+      },
+      "adapterId": "xml-secure",
+      "adapterVersion": "1.0.0"
+    },
+    {
+      "formatId": "csv",
+      "displayName": "CSV",
+      "extensions": [".csv"],
+      "mimeTypes": ["text/csv"],
+      "ingest": "supported",
+      "features": {
+        "table": "supported",
+        "quotedMultiline": "supported",
+        "urlIngest": "supported"
+      },
+      "adapterId": "csv-table",
+      "adapterVersion": "1.0.0"
+    },
+    {
+      "formatId": "tsv",
+      "displayName": "TSV",
+      "extensions": [".tsv"],
+      "mimeTypes": ["text/tab-separated-values"],
+      "ingest": "supported",
+      "features": {
+        "table": "supported",
+        "urlIngest": "supported"
+      },
+      "adapterId": "tsv-table",
+      "adapterVersion": "1.0.0"
+    },
+    {
+      "formatId": "log",
+      "displayName": "Log",
+      "extensions": [".log"],
+      "mimeTypes": ["text/plain"],
+      "ingest": "supported",
+      "features": {
+        "lineView": "supported",
+        "urlIngest": "supported"
+      },
+      "adapterId": "log-lines",
+      "adapterVersion": "1.0.0"
+    },
+    {
+      "formatId": "config",
+      "displayName": "Config / env",
+      "extensions": [".ini", ".conf", ".properties", ".env"],
+      "mimeTypes": ["text/plain", "text/x-java-properties"],
+      "ingest": "supported",
+      "features": {
+        "keyValue": "partial",
+        "secretMasking": "partial",
+        "urlIngest": "supported"
+      },
+      "adapterId": "config-text",
+      "adapterVersion": "1.0.0"
+    },
+    {
+      "formatId": "source-code",
+      "displayName": "Source code",
+      "extensions": [".java", ".ts", ".js", ".py", ".go", ".rs", ".rb", ".kt", ".cs", ".c", ".cpp", ".sh", ".sql"],
+      "mimeTypes": ["text/x-java-source", "text/javascript", "text/x-python"],
+      "ingest": "supported",
+      "features": {
+        "lineNumbers": "supported",
+        "neverExecute": "supported",
+        "urlIngest": "supported"
+      },
+      "adapterId": "source-code",
+      "adapterVersion": "1.0.0"
+    },
+    {
+      "formatId": "html",
+      "displayName": "HTML (sanitized file)",
+      "extensions": [".html", ".htm"],
+      "mimeTypes": ["text/html"],
+      "ingest": "supported",
+      "features": {
+        "sanitized": "supported",
+        "remoteFetch": "unsupported",
+        "urlIngest": "partial"
+      },
+      "notes": "Uploaded HTML files are sanitized. URL ingest rejects ordinary web pages (no silent scraping).",
+      "adapterId": "html-sanitize",
+      "adapterVersion": "1.0.0"
     }
   ],
+  "urlIngest": {
+    "enabled": true,
+    "schemes": ["http", "https"],
+    "privateNetwork": "disabled-by-default",
+    "webPages": "rejected-with-explanation"
+  },
   "exports": {
     "note": "Export converters planned for Phase 4 (markdown + sanitized HTML). PDF later.",
     "converters": []

@@ -32,11 +32,13 @@ export function ReaderShell({
   doc,
   originalText,
   onDownloadOriginal,
+  onReprocess,
 }: {
   meta: DocMeta;
   doc: ClearDoc;
   originalText: string | null;
   onDownloadOriginal: () => void;
+  onReprocess?: () => void;
 }) {
   const { prefs, setPrefs, resetPrefs, resolvedTheme } = useReaderPreferences();
   const mainRef = useRef<HTMLDivElement>(null);
@@ -230,6 +232,11 @@ export function ReaderShell({
           <button type="button" onClick={onDownloadOriginal}>
             Download original
           </button>
+          {onReprocess ? (
+            <button type="button" onClick={onReprocess} title="Create a new derived revision">
+              Reprocess
+            </button>
+          ) : null}
         </div>
       </div>
 

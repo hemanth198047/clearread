@@ -42,6 +42,17 @@ clearread:
     logo-url: ${CLEARREAD_LOGO_URL:}
   limits:
     max-upload-bytes: ${CLEARREAD_MAX_UPLOAD_BYTES:10485760}
+    max-nesting-depth: 64
+    max-csv-rows: 50000
+  fetch:
+    allow-private-network: ${CLEARREAD_FETCH_ALLOW_PRIVATE:false}
+    max-redirects: 3
+    connect-timeout-ms: 5000
+    read-timeout-ms: 15000
+    total-timeout-ms: 30000
+    max-bytes: ${CLEARREAD_MAX_UPLOAD_BYTES:10485760}
+    max-decompressed-bytes: ${CLEARREAD_MAX_UPLOAD_BYTES:10485760}
+    allowed-ports: 80,443
   storage:
     endpoint: ${CLEARREAD_S3_ENDPOINT:http://localhost:9000}
     region: ${CLEARREAD_S3_REGION:us-east-1}
@@ -50,8 +61,11 @@ clearread:
     bucket: ${CLEARREAD_S3_BUCKET:clearread}
     path-style: true
   jobs:
+    enabled: true
     poll-interval-ms: 1000
     lease-seconds: 60
+    batch-size: 5
+    max-concurrent-per-tenant: 3
     worker-id: ${HOSTNAME:local-api}
   cors:
     allowed-origins: ${CLEARREAD_CORS_ORIGINS:http://localhost:5173,http://localhost:3000}

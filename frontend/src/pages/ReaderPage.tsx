@@ -28,13 +28,21 @@ export function ReaderPage() {
     let cancelled = false;
     (async () => {
       try {
-        const m = (await apiFetch(`/v1/documents/${id}`, token)) as DocMeta;
+        let m = (await apiFetch(`/v1/documents/${id}`, token)) as DocMeta;
         if (cancelled) return;
         setMeta(m);
+        for (let i = 0; i < 80 && m.status !== "ready" && m.status !== "failed" && m.status !== "cancelled"; i++) {
+          setError(`Document status: ${m.status}…`);
+          await new Promise((r) => setTimeout(r, 500));
+          m = (await apiFetch(`/v1/documents/${id}`, token)) as DocMeta;
+          if (cancelled) return;
+          setMeta(m);
+        }
         if (m.status !== "ready") {
           setError(`Document status: ${m.status}`);
           return;
         }
+        setError(null);
         const cleardoc = (await apiFetch(`/v1/documents/${id}/cleardoc`, token)) as ClearDoc;
         if (cancelled) return;
         setDoc(cleardoc);
@@ -80,6 +88,29 @@ export function ReaderPage() {
         a.download = meta.title || "original";
         a.click();
         URL.revokeObjectURL(url);
+      }}
+      onReprocess={async () => {
+        if (!token || !meta) return;
+        setDoc(null);
+        setError("Reprocessing…");
+        await apiFetch(`/v1/documents/${meta.id}/reprocess`, token, { method: "POST", body: "{}" });
+        for (let i = 0; i < 80; i++) {
+          await new Promise((r) => setTimeout(r, 400));
+          const next = (await apiFetch(`/v1/documents/${meta.id}`, token)) as DocMeta;
+          setMeta(next);
+          if (next.status === "ready") {
+            const cleardoc = (await apiFetch(`/v1/documents/${meta.id}/cleardoc`, token)) as ClearDoc;
+            setDoc(cleardoc);
+            setError(null);
+            return;
+          }
+          if (next.status === "failed" || next.status === "cancelled") {
+            setError(`Reprocess ${next.status}`);
+            return;
+          }
+          setError(`Document status: ${next.status}…`);
+        }
+        setError("Reprocess timed out");
       }}
     />
   );

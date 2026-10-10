@@ -417,6 +417,108 @@
   opacity: 0.75;
 }
 
+.data-table-wrap {
+  margin: var(--reader-p-gap) 0;
+}
+
+.data-table-meta {
+  font-family: var(--reader-font-ui);
+  font-size: 0.85rem;
+  margin-bottom: 0.4rem;
+}
+
+.data-table-scroll {
+  max-height: min(70vh, 36rem);
+  overflow: auto;
+  border: 1px solid var(--reader-border);
+  border-radius: 0.35rem;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-family: var(--reader-font-ui);
+  font-size: 0.92rem;
+}
+
+.data-table th {
+  position: sticky;
+  top: 0;
+  background: var(--reader-toolbar-bg);
+  color: var(--reader-text);
+  text-align: left;
+  padding: 0.55rem 0.7rem;
+  border-bottom: 1px solid var(--reader-border);
+  z-index: 1;
+}
+
+.data-table td {
+  padding: 0.45rem 0.7rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--reader-border) 70%, transparent);
+  vertical-align: top;
+  white-space: pre-wrap;
+}
+
+.data-table tr:hover td {
+  background: color-mix(in srgb, var(--reader-accent) 8%, transparent);
+}
+
+.tree-node {
+  font-family: var(--reader-font-ui);
+  font-size: 0.95rem;
+  margin: 0.15rem 0;
+}
+
+.tree-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.55rem;
+  padding: 0.15rem 0.2rem;
+  border-radius: 0.25rem;
+}
+
+.tree-row:hover {
+  background: color-mix(in srgb, var(--reader-accent) 7%, transparent);
+}
+
+.tree-label {
+  font-weight: 600;
+}
+
+.tree-type {
+  font-size: 0.75rem;
+  color: var(--reader-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.tree-preview {
+  color: var(--reader-muted);
+  font-family: var(--reader-font-mono);
+  font-size: 0.85rem;
+}
+
+.tree-leaf-spacer {
+  display: inline-block;
+  width: 1.1rem;
+}
+
+.formatted-source {
+  margin: var(--reader-h-gap) 0;
+}
+
+.formatted-source-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: var(--reader-font-ui);
+  font-size: 0.85rem;
+  color: var(--reader-muted);
+  margin-bottom: 0.35rem;
+}
+
 .skip-link {
   position: absolute;
   left: -999px;

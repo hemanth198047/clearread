@@ -4,6 +4,9 @@ import com.clearread.capabilities.CapabilityService;
 import com.clearread.config.ClearReadProperties;
 import com.clearread.identity.UserRecord;
 import com.clearread.jobs.JobRepository;
+import com.clearread.net.UrlAccessPolicy;
+import com.clearread.net.UrlLogRedactor;
+import com.clearread.net.SafeHttpFetcher;
 import com.clearread.storage.ObjectStorageService;
 import com.clearread.tenancy.TenantContext;
 import com.clearread.transform.TransformService;
@@ -16,6 +19,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -30,6 +34,7 @@ public class DocumentService {
     private final JobRepository jobs;
     private final ClearReadProperties properties;
     private final ObjectMapper objectMapper;
+    private final SafeHttpFetcher fetcher;
 
     public DocumentService(
             DocumentRepository documents,
@@ -38,7 +43,8 @@ public class DocumentService {
             CapabilityService capabilities,
             JobRepository jobs,
             ClearReadProperties properties,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            SafeHttpFetcher fetcher
     ) {
         this.documents = documents;
         this.storage = storage;
@@ -47,28 +53,124 @@ public class DocumentService {
         this.jobs = jobs;
         this.properties = properties;
         this.objectMapper = objectMapper;
+        this.fetcher = fetcher;
     }
 
     @Transactional
     public DocumentRecord ingestUpload(UserRecord user, String title, String filename, String contentType, byte[] bytes) {
-        return ingest(user, title, filename, contentType, bytes, "upload");
+        return ingestBytes(user, title, filename, contentType, bytes, "upload", null);
     }
 
     @Transactional
     public DocumentRecord ingestPaste(UserRecord user, String title, String formatId, String text) {
-        String filename = (title == null || title.isBlank() ? "paste" : title)
-                + ("markdown".equals(formatId) ? ".md" : ".txt");
-        String contentType = "markdown".equals(formatId) ? "text/markdown" : "text/plain";
-        return ingest(user, title, filename, contentType, text.getBytes(StandardCharsets.UTF_8), "paste");
+        String filename = (title == null || title.isBlank() ? "paste" : title) + extensionFor(formatId);
+        String contentType = contentTypeFor(formatId);
+        return ingestBytes(user, title, filename, contentType, text.getBytes(StandardCharsets.UTF_8), "paste", formatId);
     }
 
-    private DocumentRecord ingest(
+    /**
+     * Enqueue SSRF-hardened URL fetch. Original bytes arrive asynchronously via {@code ingest.fetch} job.
+     */
+    @Transactional
+    public Map<String, Object> ingestUrl(UserRecord user, String title, String url, String idempotencyKey) {
+        requireAuthor();
+        try {
+            fetcher.policy().validate(url);
+        } catch (UrlAccessPolicy.Denied denied) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, denied.getMessage());
+        }
+
+        UUID tenantId = TenantContext.requireTenantId();
+        UUID documentId = UUID.randomUUID();
+        String resolvedTitle = (title != null && !title.isBlank()) ? title : filenameHintFromUrl(url);
+        DocumentRecord doc = new DocumentRecord(
+                documentId, tenantId, resolvedTitle, "unknown", "queued",
+                null, null, null, null, user.id(), null
+        );
+        documents.insert(doc);
+        documents.insertSource(
+                UUID.randomUUID(), tenantId, documentId, "url",
+                null, null, null, null, null,
+                url, "{\"requestedUrl\":\"" + escapeJson(UrlLogRedactor.redact(url)) + "\"}"
+        );
+        documents.insertAcl(tenantId, documentId, "user", user.id().toString(), "admin");
+
+        UUID jobId = UUID.randomUUID();
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("documentId", documentId.toString());
+        payload.put("url", url);
+        String key = idempotencyKey != null && !idempotencyKey.isBlank()
+                ? idempotencyKey
+                : "fetch:" + documentId;
+        try {
+            jobs.enqueue(jobId, tenantId, "ingest.fetch", objectMapper.writeValueAsString(payload), key);
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to enqueue fetch job");
+        }
+
+        Map<String, Object> result = new LinkedHashMap<>(toMeta(doc));
+        result.put("jobId", jobId.toString());
+        result.put("sourceUrl", UrlLogRedactor.redact(url));
+        return result;
+    }
+
+    @Transactional
+    public Map<String, Object> reprocess(UserRecord user, UUID documentId) {
+        requireAuthor();
+        DocumentRecord doc = getForRead(user, documentId);
+        if (doc.originalObjectKey() == null) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Original not available to reprocess");
+        }
+        UUID tenantId = TenantContext.requireTenantId();
+        documents.updateStatus(tenantId, documentId, "queued");
+        UUID jobId = UUID.randomUUID();
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("documentId", documentId.toString());
+        payload.put("reprocess", true);
+        try {
+            jobs.enqueue(
+                    jobId,
+                    tenantId,
+                    "transform.document",
+                    objectMapper.writeValueAsString(payload),
+                    "reprocess:" + documentId + ":" + jobId
+            );
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to enqueue reprocess job");
+        }
+        Map<String, Object> result = new LinkedHashMap<>(toMeta(documents.findByTenantAndId(tenantId, documentId).orElse(doc)));
+        result.put("jobId", jobId.toString());
+        return result;
+    }
+
+    public Map<String, Object> diagnostics(UserRecord user, UUID documentId) {
+        DocumentRecord doc = getForRead(user, documentId);
+        Map<String, Object> out = new LinkedHashMap<>(toMeta(doc));
+        out.put("revisions", documents.listRevisions(doc.tenantId(), doc.id()));
+        out.put("jobs", jobs.listForDocument(doc.tenantId(), doc.id(), 20).stream().map(j -> {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("id", j.id().toString());
+            m.put("type", j.type());
+            m.put("status", j.status());
+            m.put("attempt", j.attempt());
+            m.put("maxAttempts", j.maxAttempts());
+            m.put("lastError", j.lastError());
+            m.put("cancelRequested", j.cancelRequested());
+            return m;
+        }).toList());
+        documents.findSourceUrl(doc.tenantId(), doc.id()).ifPresent(u -> out.put("sourceUrl", UrlLogRedactor.redact(u)));
+        documents.findFetchMeta(doc.tenantId(), doc.id()).ifPresent(meta -> out.put("fetchMeta", meta));
+        return out;
+    }
+
+    private DocumentRecord ingestBytes(
             UserRecord user,
             String title,
             String filename,
             String contentType,
             byte[] bytes,
-            String sourceKind
+            String sourceKind,
+            String forcedFormatId
     ) {
         requireAuthor();
         if (bytes == null || bytes.length == 0) {
@@ -78,7 +180,7 @@ public class DocumentService {
             throw new ResponseStatusException(HttpStatus.PAYLOAD_TOO_LARGE, "Upload exceeds max size");
         }
 
-        String formatId = transformService.detectFormat(filename, contentType);
+        String formatId = forcedFormatId != null ? forcedFormatId : transformService.detectFormat(filename, contentType);
         if (formatId == null || !capabilities.supportsIngest(formatId)) {
             throw new ResponseStatusException(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "Unsupported format");
         }
@@ -171,10 +273,71 @@ public class DocumentService {
         }
     }
 
+    public Map<String, Object> toMeta(DocumentRecord doc) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("id", doc.id().toString());
+        m.put("tenantId", doc.tenantId().toString());
+        m.put("title", doc.title());
+        m.put("formatId", doc.formatId());
+        m.put("status", doc.status());
+        m.put("originalSha256", doc.originalSha256() == null ? "" : doc.originalSha256());
+        m.put("originalByteLength", doc.originalByteLength() == null ? 0 : doc.originalByteLength());
+        m.put("originalFilename", doc.originalFilename() == null ? "" : doc.originalFilename());
+        m.put("currentRevisionId", doc.currentRevisionId() == null ? "" : doc.currentRevisionId().toString());
+        return m;
+    }
+
     private void requireAuthor() {
         String role = TenantContext.roleOrNull();
         if (!"author".equals(role) && !"admin".equals(role)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Author role required");
         }
+    }
+
+    private static String extensionFor(String formatId) {
+        return switch (formatId == null ? "" : formatId) {
+            case "markdown" -> ".md";
+            case "json" -> ".json";
+            case "yaml" -> ".yaml";
+            case "xml" -> ".xml";
+            case "csv" -> ".csv";
+            case "tsv" -> ".tsv";
+            case "html" -> ".html";
+            case "log" -> ".log";
+            case "config" -> ".conf";
+            case "source-code" -> ".txt";
+            default -> ".txt";
+        };
+    }
+
+    private static String contentTypeFor(String formatId) {
+        return switch (formatId == null ? "" : formatId) {
+            case "markdown" -> "text/markdown";
+            case "json" -> "application/json";
+            case "yaml" -> "application/yaml";
+            case "xml" -> "application/xml";
+            case "csv" -> "text/csv";
+            case "tsv" -> "text/tab-separated-values";
+            case "html" -> "text/html";
+            default -> "text/plain";
+        };
+    }
+
+    private static String filenameHintFromUrl(String url) {
+        try {
+            String path = java.net.URI.create(url.trim()).getPath();
+            if (path == null || path.isBlank() || "/".equals(path)) {
+                return "Remote document";
+            }
+            int slash = path.lastIndexOf('/');
+            String name = slash >= 0 ? path.substring(slash + 1) : path;
+            return name.isBlank() ? "Remote document" : name;
+        } catch (Exception e) {
+            return "Remote document";
+        }
+    }
+
+    private static String escapeJson(String s) {
+        return s.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 }

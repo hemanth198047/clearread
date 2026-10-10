@@ -13,6 +13,7 @@ public class ClearReadProperties {
     private final Storage storage = new Storage();
     private final Jobs jobs = new Jobs();
     private final Cors cors = new Cors();
+    private final Fetch fetch = new Fetch();
 
     public Branding getBranding() {
         return branding;
@@ -32,6 +33,10 @@ public class ClearReadProperties {
 
     public Cors getCors() {
         return cors;
+    }
+
+    public Fetch getFetch() {
+        return fetch;
     }
 
     public static class Branding {
@@ -75,6 +80,8 @@ public class ClearReadProperties {
 
     public static class Limits {
         private long maxUploadBytes = 10 * 1024 * 1024;
+        private int maxNestingDepth = 64;
+        private int maxCsvRows = 50_000;
 
         public long getMaxUploadBytes() {
             return maxUploadBytes;
@@ -82,6 +89,22 @@ public class ClearReadProperties {
 
         public void setMaxUploadBytes(long maxUploadBytes) {
             this.maxUploadBytes = maxUploadBytes;
+        }
+
+        public int getMaxNestingDepth() {
+            return maxNestingDepth;
+        }
+
+        public void setMaxNestingDepth(int maxNestingDepth) {
+            this.maxNestingDepth = maxNestingDepth;
+        }
+
+        public int getMaxCsvRows() {
+            return maxCsvRows;
+        }
+
+        public void setMaxCsvRows(int maxCsvRows) {
+            this.maxCsvRows = maxCsvRows;
         }
     }
 
@@ -146,6 +169,9 @@ public class ClearReadProperties {
         private long pollIntervalMs = 1000;
         private int leaseSeconds = 60;
         private String workerId = "local-api";
+        private int batchSize = 5;
+        private int maxConcurrentPerTenant = 3;
+        private boolean enabled = true;
 
         public long getPollIntervalMs() {
             return pollIntervalMs;
@@ -169,6 +195,106 @@ public class ClearReadProperties {
 
         public void setWorkerId(String workerId) {
             this.workerId = workerId;
+        }
+
+        public int getBatchSize() {
+            return batchSize;
+        }
+
+        public void setBatchSize(int batchSize) {
+            this.batchSize = batchSize;
+        }
+
+        public int getMaxConcurrentPerTenant() {
+            return maxConcurrentPerTenant;
+        }
+
+        public void setMaxConcurrentPerTenant(int maxConcurrentPerTenant) {
+            this.maxConcurrentPerTenant = maxConcurrentPerTenant;
+        }
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+    }
+
+    public static class Fetch {
+        /** Private / loopback / link-local / metadata blocked unless true. */
+        private boolean allowPrivateNetwork = false;
+        private int maxRedirects = 3;
+        private int connectTimeoutMs = 5_000;
+        private int readTimeoutMs = 15_000;
+        private int totalTimeoutMs = 30_000;
+        private long maxBytes = 10 * 1024 * 1024;
+        private long maxDecompressedBytes = 10 * 1024 * 1024;
+        private List<Integer> allowedPorts = new ArrayList<>(List.of(80, 443));
+
+        public boolean isAllowPrivateNetwork() {
+            return allowPrivateNetwork;
+        }
+
+        public void setAllowPrivateNetwork(boolean allowPrivateNetwork) {
+            this.allowPrivateNetwork = allowPrivateNetwork;
+        }
+
+        public int getMaxRedirects() {
+            return maxRedirects;
+        }
+
+        public void setMaxRedirects(int maxRedirects) {
+            this.maxRedirects = maxRedirects;
+        }
+
+        public int getConnectTimeoutMs() {
+            return connectTimeoutMs;
+        }
+
+        public void setConnectTimeoutMs(int connectTimeoutMs) {
+            this.connectTimeoutMs = connectTimeoutMs;
+        }
+
+        public int getReadTimeoutMs() {
+            return readTimeoutMs;
+        }
+
+        public void setReadTimeoutMs(int readTimeoutMs) {
+            this.readTimeoutMs = readTimeoutMs;
+        }
+
+        public int getTotalTimeoutMs() {
+            return totalTimeoutMs;
+        }
+
+        public void setTotalTimeoutMs(int totalTimeoutMs) {
+            this.totalTimeoutMs = totalTimeoutMs;
+        }
+
+        public long getMaxBytes() {
+            return maxBytes;
+        }
+
+        public void setMaxBytes(long maxBytes) {
+            this.maxBytes = maxBytes;
+        }
+
+        public long getMaxDecompressedBytes() {
+            return maxDecompressedBytes;
+        }
+
+        public void setMaxDecompressedBytes(long maxDecompressedBytes) {
+            this.maxDecompressedBytes = maxDecompressedBytes;
+        }
+
+        public List<Integer> getAllowedPorts() {
+            return allowedPorts;
+        }
+
+        public void setAllowedPorts(List<Integer> allowedPorts) {
+            this.allowedPorts = allowedPorts;
         }
     }
 

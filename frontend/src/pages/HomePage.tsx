@@ -9,18 +9,21 @@ type DocMeta = {
   title: string;
   status: string;
   formatId: string;
+  jobId?: string;
 };
 
 export function HomePage() {
   const branding = useBranding();
   const auth = useAuth();
   const navigate = useNavigate();
-  const [tab, setTab] = useState<"paste" | "upload">("paste");
+  const [tab, setTab] = useState<"paste" | "upload" | "url">("paste");
   const [title, setTitle] = useState("");
   const [formatId, setFormatId] = useState("markdown");
-  const [content, setContent] = useState("# Welcome\n\nPaste Markdown or plain text to read beautifully.\n");
+  const [content, setContent] = useState("# Welcome\n\nPaste Markdown, JSON, YAML, CSV, or other text formats.\n");
   const [file, setFile] = useState<File | null>(null);
+  const [url, setUrl] = useState("");
   const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [docs, setDocs] = useState<DocMeta[]>([]);
 
@@ -35,10 +38,13 @@ export function HomePage() {
   }, [signedIn, token]);
 
   async function waitUntilReady(id: string, accessToken: string) {
-    for (let i = 0; i < 40; i++) {
+    for (let i = 0; i < 80; i++) {
       const meta = (await apiFetch(`/v1/documents/${id}`, accessToken)) as DocMeta;
+      setProgress(`Status: ${meta.status}`);
       if (meta.status === "ready") return meta;
-      if (meta.status === "failed") throw new Error("Processing failed");
+      if (meta.status === "failed" || meta.status === "cancelled") {
+        throw new Error(`Processing ${meta.status}`);
+      }
       await new Promise((r) => setTimeout(r, 500));
     }
     throw new Error("Timed out waiting for document");
@@ -49,6 +55,7 @@ export function HomePage() {
     if (!token) return;
     setBusy(true);
     setError(null);
+    setProgress("Uploading…");
     try {
       const created = (await apiFetch("/v1/documents/paste", token, {
         method: "POST",
@@ -60,6 +67,7 @@ export function HomePage() {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setBusy(false);
+      setProgress(null);
     }
   }
 
@@ -68,6 +76,7 @@ export function HomePage() {
     if (!token || !file) return;
     setBusy(true);
     setError(null);
+    setProgress("Uploading…");
     try {
       const form = new FormData();
       form.append("file", file);
@@ -82,6 +91,29 @@ export function HomePage() {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setBusy(false);
+      setProgress(null);
+    }
+  }
+
+  async function onUrl(e: FormEvent) {
+    e.preventDefault();
+    if (!token || !url.trim()) return;
+    setBusy(true);
+    setError(null);
+    setProgress("Validating URL & enqueueing fetch…");
+    try {
+      const created = (await apiFetch("/v1/documents/from-url", token, {
+        method: "POST",
+        body: JSON.stringify({ title, url: url.trim() }),
+      })) as DocMeta;
+      setProgress(`Fetch job ${created.jobId ?? ""} — waiting…`);
+      await waitUntilReady(created.id, token);
+      navigate(`/documents/${created.id}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+      setProgress(null);
     }
   }
 
@@ -90,14 +122,16 @@ export function HomePage() {
       <section className="hero">
         <h1>{branding.productName}</h1>
         <p>
-          Turn Markdown and plain text into a calm, structured reading experience — without rewriting your originals
-          or requiring AI.
+          Turn text-based files into a calm, structured reading experience — without rewriting your originals or
+          requiring AI.
         </p>
       </section>
 
       <section className="panel">
         {!signedIn ? (
-          <p className="muted">Sign in to paste or upload a document. Local demo user: <code>demo</code> / <code>demo</code>.</p>
+          <p className="muted">
+            Sign in to paste, upload, or fetch a document. Local demo user: <code>demo</code> / <code>demo</code>.
+          </p>
         ) : (
           <>
             <div className="tabs">
@@ -106,6 +140,9 @@ export function HomePage() {
               </button>
               <button type="button" className={tab === "upload" ? "" : "secondary"} onClick={() => setTab("upload")}>
                 Upload
+              </button>
+              <button type="button" className={tab === "url" ? "" : "secondary"} onClick={() => setTab("url")}>
+                From URL
               </button>
             </div>
 
@@ -120,6 +157,15 @@ export function HomePage() {
                   <select value={formatId} onChange={(e) => setFormatId(e.target.value)}>
                     <option value="markdown">Markdown</option>
                     <option value="plain-text">Plain text</option>
+                    <option value="json">JSON</option>
+                    <option value="yaml">YAML</option>
+                    <option value="xml">XML</option>
+                    <option value="csv">CSV</option>
+                    <option value="tsv">TSV</option>
+                    <option value="log">Log</option>
+                    <option value="config">Config / env</option>
+                    <option value="source-code">Source code</option>
+                    <option value="html">HTML (sanitized)</option>
                   </select>
                 </label>
                 <label>
@@ -132,17 +178,19 @@ export function HomePage() {
                   </button>
                 </p>
               </form>
-            ) : (
+            ) : null}
+
+            {tab === "upload" ? (
               <form onSubmit={onUpload}>
                 <label>
                   Title
                   <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Optional title" />
                 </label>
                 <label>
-                  File (.md or .txt, max 10 MiB)
+                  File (text-based formats, max 10 MiB)
                   <input
                     type="file"
-                    accept=".md,.markdown,.txt,text/plain,text/markdown"
+                    accept=".md,.markdown,.txt,.json,.yaml,.yml,.xml,.csv,.tsv,.log,.ini,.conf,.properties,.env,.html,.htm,.java,.ts,.js,.py,.go,.rs,.rb,.kt,.cs,.c,.cpp,.sh,.sql,text/plain,text/markdown,application/json"
                     onChange={(e) => setFile(e.target.files?.[0] ?? null)}
                   />
                 </label>
@@ -152,8 +200,42 @@ export function HomePage() {
                   </button>
                 </p>
               </form>
+            ) : null}
+
+            {tab === "url" ? (
+              <form onSubmit={onUrl}>
+                <label>
+                  Title
+                  <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Optional title" />
+                </label>
+                <label>
+                  Direct file URL (http/https)
+                  <input
+                    type="url"
+                    value={url}
+                    onChange={(e) => setUrl(e.target.value)}
+                    placeholder="https://example.com/path/to/file.json"
+                    required
+                  />
+                </label>
+                <p className="muted" style={{ marginTop: "0.5rem" }}>
+                  SSRF-hardened fetch: private/metadata addresses blocked. Ordinary web pages are not scraped — use a
+                  raw file URL, or paste/upload instead.
+                </p>
+                <p style={{ marginTop: "1rem" }}>
+                  <button type="submit" disabled={busy || !url.trim()}>
+                    {busy ? "Fetching…" : "Fetch & read"}
+                  </button>
+                </p>
+              </form>
+            ) : null}
+
+            {progress && <p className="status-line muted">{progress}</p>}
+            {error && (
+              <p className="status-line" role="alert">
+                {error}
+              </p>
             )}
-            {error && <p className="status-line" role="alert">{error}</p>}
           </>
         )}
 

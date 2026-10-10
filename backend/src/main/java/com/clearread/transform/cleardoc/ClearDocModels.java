@@ -156,4 +156,64 @@ public final class ClearDocModels {
     public static List<Map<String, Object>> mutableBody() {
         return new ArrayList<>();
     }
+
+    public static Map<String, Object> dataTable(
+            String nodeId,
+            List<String> headers,
+            List<List<String>> rows,
+            String delimiter,
+            boolean headerRow,
+            Provenance provenance
+    ) {
+        Map<String, Object> node = new java.util.LinkedHashMap<>();
+        node.put("type", "dataTable");
+        node.put("nodeId", nodeId);
+        node.put("headers", headers);
+        node.put("rows", rows);
+        node.put("delimiter", delimiter);
+        node.put("headerRow", headerRow);
+        if (provenance != null) {
+            node.put("provenance", provenance);
+        }
+        return node;
+    }
+
+    public static Map<String, Object> treeNode(
+            String nodeId,
+            String label,
+            String valueType,
+            String valuePreview,
+            List<Map<String, Object>> children,
+            Provenance provenance
+    ) {
+        Map<String, Object> node = new java.util.LinkedHashMap<>();
+        node.put("type", "treeNode");
+        node.put("nodeId", nodeId);
+        node.put("label", label);
+        if (valueType != null) {
+            node.put("valueType", valueType);
+        }
+        if (valuePreview != null) {
+            node.put("valuePreview", valuePreview);
+        }
+        if (children != null) {
+            node.put("children", children);
+        }
+        if (provenance != null) {
+            node.put("provenance", provenance);
+        }
+        return node;
+    }
+
+    public static Map<String, Object> formattedSource(String nodeId, String language, String text, Provenance provenance) {
+        Map<String, Object> node = new java.util.LinkedHashMap<>();
+        node.put("type", "formattedSource");
+        node.put("nodeId", nodeId);
+        node.put("language", language);
+        node.put("text", text);
+        if (provenance != null) {
+            node.put("provenance", provenance);
+        }
+        return node;
+    }
 }

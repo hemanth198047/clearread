@@ -5,6 +5,7 @@ import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -47,15 +48,104 @@ public class DocumentRepository {
 
     public void insertSource(UUID id, UUID tenantId, UUID documentId, String kind, String objectKey,
                              String sha256, long byteLength, String contentType, String filename) {
+        insertSource(id, tenantId, documentId, kind, objectKey, sha256, byteLength, contentType, filename, null, "{}");
+    }
+
+    public void insertSource(UUID id, UUID tenantId, UUID documentId, String kind, String objectKey,
+                             String sha256, Long byteLength, String contentType, String filename,
+                             String sourceUrl, String fetchMetaJson) {
         jdbc.update(
                 """
                 INSERT INTO document_sources (
                   id, tenant_id, document_id, source_kind, object_key, content_sha256,
-                  byte_length, content_type, original_filename
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                  byte_length, content_type, original_filename, source_url, fetch_meta_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb)
                 """,
-                id, tenantId, documentId, kind, objectKey, sha256, byteLength, contentType, filename
+                id, tenantId, documentId, kind, objectKey, sha256, byteLength, contentType, filename,
+                sourceUrl, fetchMetaJson == null ? "{}" : fetchMetaJson
         );
+    }
+
+    public void updateSourceFetched(
+            UUID tenantId, UUID documentId, String objectKey, String sha256, long byteLength,
+            String contentType, String filename, String fetchMetaJson
+    ) {
+        jdbc.update(
+                """
+                UPDATE document_sources
+                SET object_key = ?, content_sha256 = ?, byte_length = ?, content_type = ?,
+                    original_filename = ?, fetch_meta_json = ?::jsonb
+                WHERE tenant_id = ? AND document_id = ?
+                """,
+                objectKey, sha256, byteLength, contentType, filename, fetchMetaJson, tenantId, documentId
+        );
+    }
+
+    public void attachOriginal(UUID tenantId, UUID documentId, String objectKey, String sha256,
+                               long byteLength, String filename, String formatId) {
+        jdbc.update(
+                """
+                UPDATE documents
+                SET original_object_key = ?, original_sha256 = ?, original_byte_length = ?,
+                    original_filename = ?, format_id = ?, updated_at = now()
+                WHERE tenant_id = ? AND id = ?
+                """,
+                objectKey, sha256, byteLength, filename, formatId, tenantId, documentId
+        );
+    }
+
+    public int nextRevisionNumber(UUID tenantId, UUID documentId) {
+        Integer n = jdbc.queryForObject(
+                """
+                SELECT COALESCE(MAX(revision_number), 0) + 1
+                FROM document_revisions
+                WHERE tenant_id = ? AND document_id = ?
+                """,
+                Integer.class,
+                tenantId, documentId
+        );
+        return n == null ? 1 : n;
+    }
+
+    public List<Map<String, Object>> listRevisions(UUID tenantId, UUID documentId) {
+        return jdbc.query(
+                """
+                SELECT id, revision_number, adapter_id, adapter_version, registry_version,
+                       cleardoc_sha256, warnings_json::text, created_at
+                FROM document_revisions
+                WHERE tenant_id = ? AND document_id = ?
+                ORDER BY revision_number DESC
+                """,
+                (rs, rowNum) -> {
+                    Map<String, Object> m = new java.util.LinkedHashMap<>();
+                    m.put("id", rs.getObject("id", UUID.class).toString());
+                    m.put("revisionNumber", rs.getInt("revision_number"));
+                    m.put("adapterId", rs.getString("adapter_id"));
+                    m.put("adapterVersion", rs.getString("adapter_version"));
+                    m.put("registryVersion", rs.getString("registry_version"));
+                    m.put("cleardocSha256", rs.getString("cleardoc_sha256"));
+                    m.put("warningsJson", rs.getString("warnings_json"));
+                    m.put("createdAt", rs.getObject("created_at").toString());
+                    return m;
+                },
+                tenantId, documentId
+        );
+    }
+
+    public Optional<String> findSourceUrl(UUID tenantId, UUID documentId) {
+        return jdbc.query(
+                "SELECT source_url FROM document_sources WHERE tenant_id = ? AND document_id = ?",
+                (rs, rowNum) -> rs.getString("source_url"),
+                tenantId, documentId
+        ).stream().findFirst();
+    }
+
+    public Optional<String> findFetchMeta(UUID tenantId, UUID documentId) {
+        return jdbc.query(
+                "SELECT fetch_meta_json::text FROM document_sources WHERE tenant_id = ? AND document_id = ?",
+                (rs, rowNum) -> rs.getString(1),
+                tenantId, documentId
+        ).stream().findFirst();
     }
 
     public void updateStatus(UUID tenantId, UUID documentId, String status) {
