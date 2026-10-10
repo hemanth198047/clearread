@@ -170,7 +170,20 @@
     "webPages": "rejected-with-explanation"
   },
   "exports": {
-    "note": "Export converters planned for Phase 4 (markdown + sanitized HTML). PDF later.",
-    "converters": []
+    "note": "Phase 4: markdown + sanitized HTML registered. PDF deferred (same API seam, converter not registered).",
+    "converters": [
+      {
+        "targetFormat": "markdown",
+        "converterId": "cleardoc-to-markdown",
+        "converterVersion": "1.0.0",
+        "artifactKind": "generated"
+      },
+      {
+        "targetFormat": "html",
+        "converterId": "cleardoc-to-html-sanitized",
+        "converterVersion": "1.0.0",
+        "artifactKind": "generated"
+      }
+    ]
   }
 }

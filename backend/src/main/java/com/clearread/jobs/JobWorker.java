@@ -1,5 +1,6 @@
 package com.clearread.jobs;
 
+import com.clearread.annotations.AnnotationService;
 import com.clearread.capabilities.CapabilityService;
 import com.clearread.config.ClearReadProperties;
 import com.clearread.documents.DocumentRecord;
@@ -7,6 +8,7 @@ import com.clearread.documents.DocumentRepository;
 import com.clearread.net.SafeHttpFetcher;
 import com.clearread.net.UrlAccessPolicy;
 import com.clearread.net.UrlLogRedactor;
+import com.clearread.search.SearchService;
 import com.clearread.storage.ObjectStorageService;
 import com.clearread.transform.FormatAdapter;
 import com.clearread.transform.TransformService;
@@ -19,6 +21,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -39,6 +42,8 @@ public class JobWorker {
     private final ObjectMapper objectMapper;
     private final ClearReadProperties properties;
     private final SafeHttpFetcher fetcher;
+    private final SearchService searchService;
+    private final AnnotationService annotationService;
 
     public JobWorker(
             JobRepository jobRepository,
@@ -48,7 +53,9 @@ public class JobWorker {
             CapabilityService capabilityService,
             ObjectMapper objectMapper,
             ClearReadProperties properties,
-            SafeHttpFetcher fetcher
+            SafeHttpFetcher fetcher,
+            SearchService searchService,
+            AnnotationService annotationService
     ) {
         this.jobRepository = jobRepository;
         this.documentRepository = documentRepository;
@@ -58,6 +65,8 @@ public class JobWorker {
         this.objectMapper = objectMapper;
         this.properties = properties;
         this.fetcher = fetcher;
+        this.searchService = searchService;
+        this.annotationService = annotationService;
     }
 
     @Scheduled(fixedDelayString = "${clearread.jobs.poll-interval-ms:1000}")
@@ -206,5 +215,61 @@ public class JobWorker {
                 objectMapper.writeValueAsString(cleardoc.warnings())
         );
         documentRepository.markReady(job.tenantId(), documentId, revisionId);
+        if (revisionNumber > 1) {
+            annotationService.markUncertainForDocument(job.tenantId(), documentId);
+        }
+        searchService.upsertIndex(
+                job.tenantId(),
+                documentId,
+                revisionId,
+                cleardoc.metadata() != null ? cleardoc.metadata().title() : doc.title(),
+                extractSearchText(cleardoc)
+        );
+    }
+
+    private static String extractSearchText(ClearDoc doc) {
+        StringBuilder sb = new StringBuilder();
+        walk(doc.body(), sb);
+        return sb.toString();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void walk(Object node, StringBuilder sb) {
+        if (node == null) {
+            return;
+        }
+        if (node instanceof String s) {
+            sb.append(s).append(' ');
+            return;
+        }
+        if (node instanceof List<?> list) {
+            for (Object o : list) {
+                walk(o, sb);
+            }
+            return;
+        }
+        if (node instanceof Map<?, ?> map) {
+            Object value = map.get("value");
+            Object text = map.get("text");
+            Object label = map.get("label");
+            Object preview = map.get("valuePreview");
+            if (value instanceof String) {
+                sb.append(value).append(' ');
+            }
+            if (text instanceof String) {
+                sb.append(text).append(' ');
+            }
+            if (label instanceof String) {
+                sb.append(label).append(' ');
+            }
+            if (preview instanceof String) {
+                sb.append(preview).append(' ');
+            }
+            walk(map.get("children"), sb);
+            walk(map.get("items"), sb);
+            walk(map.get("headers"), sb);
+            walk(map.get("rows"), sb);
+            walk(map.get("body"), sb);
+        }
     }
 }

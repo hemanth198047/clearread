@@ -1,14 +1,17 @@
 package com.clearread.documents;
 
+import com.clearread.audit.AuditService;
 import com.clearread.capabilities.CapabilityService;
 import com.clearread.config.ClearReadProperties;
 import com.clearread.identity.UserRecord;
 import com.clearread.jobs.JobRepository;
+import com.clearread.library.LibraryService;
 import com.clearread.net.UrlAccessPolicy;
 import com.clearread.net.UrlLogRedactor;
 import com.clearread.net.SafeHttpFetcher;
 import com.clearread.storage.ObjectStorageService;
 import com.clearread.tenancy.TenantContext;
+import com.clearread.tenancy.WorkspaceSettingsRepository;
 import com.clearread.transform.TransformService;
 import com.clearread.transform.cleardoc.ClearDocModels.ClearDoc;
 import tools.jackson.databind.ObjectMapper;
@@ -35,6 +38,9 @@ public class DocumentService {
     private final ClearReadProperties properties;
     private final ObjectMapper objectMapper;
     private final SafeHttpFetcher fetcher;
+    private final WorkspaceSettingsRepository workspaceSettings;
+    private final LibraryService libraryService;
+    private final AuditService audit;
 
     public DocumentService(
             DocumentRepository documents,
@@ -44,7 +50,10 @@ public class DocumentService {
             JobRepository jobs,
             ClearReadProperties properties,
             ObjectMapper objectMapper,
-            SafeHttpFetcher fetcher
+            SafeHttpFetcher fetcher,
+            WorkspaceSettingsRepository workspaceSettings,
+            LibraryService libraryService,
+            AuditService audit
     ) {
         this.documents = documents;
         this.storage = storage;
@@ -54,6 +63,9 @@ public class DocumentService {
         this.properties = properties;
         this.objectMapper = objectMapper;
         this.fetcher = fetcher;
+        this.workspaceSettings = workspaceSettings;
+        this.libraryService = libraryService;
+        this.audit = audit;
     }
 
     @Transactional
@@ -81,6 +93,7 @@ public class DocumentService {
         }
 
         UUID tenantId = TenantContext.requireTenantId();
+        libraryService.assertWithinQuota(tenantId);
         UUID documentId = UUID.randomUUID();
         String resolvedTitle = (title != null && !title.isBlank()) ? title : filenameHintFromUrl(url);
         DocumentRecord doc = new DocumentRecord(
@@ -176,16 +189,19 @@ public class DocumentService {
         if (bytes == null || bytes.length == 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Empty content");
         }
-        if (bytes.length > properties.getLimits().getMaxUploadBytes()) {
+        UUID tenantId = TenantContext.requireTenantId();
+        long maxBytes = Math.min(properties.getLimits().getMaxUploadBytes(),
+                workspaceSettings.getOrDefaults(tenantId).maxUploadBytes());
+        if (bytes.length > maxBytes) {
             throw new ResponseStatusException(HttpStatus.PAYLOAD_TOO_LARGE, "Upload exceeds max size");
         }
+        libraryService.assertWithinQuota(tenantId);
 
         String formatId = forcedFormatId != null ? forcedFormatId : transformService.detectFormat(filename, contentType);
         if (formatId == null || !capabilities.supportsIngest(formatId)) {
             throw new ResponseStatusException(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "Unsupported format");
         }
 
-        UUID tenantId = TenantContext.requireTenantId();
         UUID documentId = UUID.randomUUID();
         String sha = ObjectStorageService.sha256(bytes);
         String key = storage.originalKey(tenantId, documentId, sha);
@@ -271,6 +287,49 @@ public class DocumentService {
         } catch (Exception e) {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to read ClearDoc");
         }
+    }
+
+    public List<Map<String, Object>> listRevisions(UserRecord user, UUID documentId) {
+        DocumentRecord doc = getForRead(user, documentId);
+        return documents.listRevisions(doc.tenantId(), doc.id());
+    }
+
+    public ClearDoc getCleardocRevision(UserRecord user, UUID documentId, UUID revisionId) {
+        DocumentRecord doc = getForRead(user, documentId);
+        String key = documents.findCleardocKey(doc.tenantId(), doc.id(), revisionId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Revision not found"));
+        try {
+            return objectMapper.readValue(storage.getBytes(key), ClearDoc.class);
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to read ClearDoc");
+        }
+    }
+
+    @Transactional
+    public void softDelete(UserRecord user, UUID documentId) {
+        requireAuthor();
+        DocumentRecord doc = getForRead(user, documentId);
+        documents.softDelete(doc.tenantId(), doc.id());
+        audit.record(user.id(), "document.soft_delete", "document", documentId.toString(), Map.of());
+    }
+
+    @Transactional
+    public void restore(UserRecord user, UUID documentId) {
+        requireAuthor();
+        UUID tenantId = TenantContext.requireTenantId();
+        documents.restore(tenantId, documentId);
+        audit.record(user.id(), "document.restore", "document", documentId.toString(), Map.of());
+    }
+
+    @Transactional
+    public void permanentDelete(UserRecord user, UUID documentId) {
+        if (!"admin".equals(TenantContext.roleOrNull())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Admin role required for permanent deletion");
+        }
+        DocumentRecord doc = getForRead(user, documentId);
+        documents.permanentDeleteMarker(doc.tenantId(), doc.id());
+        audit.record(user.id(), "document.purge", "document", documentId.toString(),
+                Map.of("note", "Soft-purged marker; object GC policy-controlled"));
     }
 
     public Map<String, Object> toMeta(DocumentRecord doc) {

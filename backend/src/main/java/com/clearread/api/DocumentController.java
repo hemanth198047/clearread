@@ -2,6 +2,7 @@ package com.clearread.api;
 
 import com.clearread.documents.DocumentRecord;
 import com.clearread.documents.DocumentService;
+import com.clearread.export.ExportService;
 import com.clearread.identity.UserRecord;
 import com.clearread.transform.cleardoc.ClearDocModels.ClearDoc;
 import jakarta.servlet.http.HttpServletRequest;
@@ -9,6 +10,7 @@ import jakarta.validation.constraints.NotBlank;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -29,9 +31,11 @@ import java.util.UUID;
 public class DocumentController {
 
     private final DocumentService documentService;
+    private final ExportService exportService;
 
-    public DocumentController(DocumentService documentService) {
+    public DocumentController(DocumentService documentService, ExportService exportService) {
         this.documentService = documentService;
+        this.exportService = exportService;
     }
 
     public record PasteRequest(String title, @NotBlank String formatId, @NotBlank String content) {
@@ -114,6 +118,65 @@ public class DocumentController {
     ClearDoc cleardoc(HttpServletRequest request, @PathVariable("id") UUID id) {
         UserRecord user = MeController.requireUser(request);
         return documentService.getCleardoc(user, id);
+    }
+
+    @GetMapping("/{id}/revisions")
+    List<Map<String, Object>> revisions(HttpServletRequest request, @PathVariable("id") UUID id) {
+        return documentService.listRevisions(MeController.requireUser(request), id);
+    }
+
+    @GetMapping("/{id}/revisions/{revId}/cleardoc")
+    ClearDoc revisionCleardoc(
+            HttpServletRequest request,
+            @PathVariable("id") UUID id,
+            @PathVariable("revId") UUID revId
+    ) {
+        return documentService.getCleardocRevision(MeController.requireUser(request), id, revId);
+    }
+
+    @DeleteMapping("/{id}")
+    Map<String, String> delete(HttpServletRequest request, @PathVariable("id") UUID id) {
+        documentService.softDelete(MeController.requireUser(request), id);
+        return Map.of("status", "deleted");
+    }
+
+    @PostMapping("/{id}/restore")
+    Map<String, String> restore(HttpServletRequest request, @PathVariable("id") UUID id) {
+        documentService.restore(MeController.requireUser(request), id);
+        return Map.of("status", "restored");
+    }
+
+    @PostMapping("/{id}/purge")
+    Map<String, String> purge(HttpServletRequest request, @PathVariable("id") UUID id) {
+        documentService.permanentDelete(MeController.requireUser(request), id);
+        return Map.of("status", "purged");
+    }
+
+    @GetMapping("/{id}/exports")
+    List<Map<String, Object>> exports(HttpServletRequest request, @PathVariable("id") UUID id) {
+        return exportService.listExports(MeController.requireUser(request), id);
+    }
+
+    public record ExportRequest(@NotBlank String targetFormat) {
+    }
+
+    @PostMapping("/{id}/exports")
+    Map<String, Object> createExport(HttpServletRequest request, @PathVariable("id") UUID id, @RequestBody ExportRequest body) {
+        return exportService.requestExport(MeController.requireUser(request), id, body.targetFormat());
+    }
+
+    @GetMapping("/{id}/exports/{exportId}/content")
+    ResponseEntity<byte[]> exportContent(
+            HttpServletRequest request,
+            @PathVariable("id") UUID id,
+            @PathVariable("exportId") UUID exportId
+    ) {
+        byte[] bytes = exportService.downloadExport(MeController.requireUser(request), id, exportId);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"export-" + exportId + "\"")
+                .header("X-ClearRead-Artifact-Kind", "generated")
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .body(bytes);
     }
 
     private static String safeName(String name) {

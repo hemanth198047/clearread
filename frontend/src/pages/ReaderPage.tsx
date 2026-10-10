@@ -69,11 +69,54 @@ export function ReaderPage() {
     );
   }
 
+  async function exportDoc(targetFormat: "markdown" | "html") {
+    if (!token || !meta) return;
+    const created = (await apiFetch(`/v1/documents/${meta.id}/exports`, token, {
+      method: "POST",
+      body: JSON.stringify({ targetFormat }),
+    })) as { id: string };
+    const buf = (await apiFetch(`/v1/documents/${meta.id}/exports/${created.id}/content`, token)) as ArrayBuffer;
+    const blob = new Blob([buf]);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${meta.title || "export"}.${targetFormat === "html" ? "html" : "md"}`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function createShare() {
+    if (!token || !meta) return;
+    const expiresAt = new Date(Date.now() + 72 * 3600_000).toISOString();
+    const link = (await apiFetch(`/v1/documents/${meta.id}/share-links`, token, {
+      method: "POST",
+      body: JSON.stringify({ expiresAt, requireAuth: true, allowDownload: false, label: "Phase 4 share" }),
+    })) as { id: string; token: string };
+    const preview = (await apiFetch(`/v1/documents/${meta.id}/preview-tokens`, token, {
+      method: "POST",
+      body: JSON.stringify({ expiresAt, maxViews: 50, allowOriginalDownload: false }),
+    })) as { token: string };
+    window.prompt("Share link token (copy now; not shown again):", link.token);
+    window.prompt("Anonymous preview path token (TTL):", `/preview/${preview.token}`);
+  }
+
   if (!doc || !meta) {
     return <p className="muted">Loading reader…</p>;
   }
 
   return (
+    <>
+      <div className="org-actions">
+        <button type="button" className="secondary" onClick={() => void exportDoc("markdown")}>
+          Export Markdown
+        </button>
+        <button type="button" className="secondary" onClick={() => void exportDoc("html")}>
+          Export HTML
+        </button>
+        <button type="button" className="secondary" onClick={() => void createShare()}>
+          Share / preview
+        </button>
+      </div>
     <ReaderShell
       meta={meta}
       doc={doc}
@@ -113,5 +156,6 @@ export function ReaderPage() {
         setError("Reprocess timed out");
       }}
     />
+    </>
   );
 }

@@ -170,6 +170,42 @@ public class DocumentRepository {
         updateStatus(tenantId, documentId, "failed");
     }
 
+    public void softDelete(UUID tenantId, UUID documentId) {
+        jdbc.update(
+                """
+                UPDATE documents
+                SET deleted_at = now(), status = 'deleted', updated_at = now()
+                WHERE tenant_id = ? AND id = ? AND deleted_at IS NULL
+                """,
+                tenantId, documentId
+        );
+    }
+
+    public void restore(UUID tenantId, UUID documentId) {
+        jdbc.update(
+                """
+                UPDATE documents
+                SET deleted_at = NULL,
+                    status = CASE WHEN current_revision_id IS NULL THEN 'queued' ELSE 'ready' END,
+                    updated_at = now()
+                WHERE tenant_id = ? AND id = ? AND deleted_at IS NOT NULL
+                """,
+                tenantId, documentId
+        );
+    }
+
+    /** Policy hook for permanent deletion (admin); originals remain until GC policy. */
+    public void permanentDeleteMarker(UUID tenantId, UUID documentId) {
+        jdbc.update(
+                """
+                UPDATE documents
+                SET deleted_at = now(), status = 'deleted', title = '[purged]', updated_at = now()
+                WHERE tenant_id = ? AND id = ?
+                """,
+                tenantId, documentId
+        );
+    }
+
     public void insertRevision(
             UUID id, UUID tenantId, UUID documentId, int revisionNumber,
             String cleardocKey, String cleardocSha, String schemaVersion,

@@ -1,7 +1,10 @@
 import { Link, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { useAuth } from "./auth/AuthProvider";
 import { useBranding } from "./branding/BrandingProvider";
+import { AdminPage } from "./pages/AdminPage";
 import { HomePage } from "./pages/HomePage";
+import { LibraryPage } from "./pages/LibraryPage";
+import { PreviewPage } from "./pages/PreviewPage";
 import { ReaderPage } from "./pages/ReaderPage";
 import { ReaderPreferencesProvider } from "./reader/ReaderPreferencesProvider";
 
@@ -10,6 +13,7 @@ export function App() {
   const auth = useAuth();
   const location = useLocation();
   const inReader = location.pathname.startsWith("/documents/");
+  const inPreview = location.pathname.startsWith("/preview/");
 
   return (
     <ReaderPreferencesProvider>
@@ -18,6 +22,11 @@ export function App() {
           <Link className="brand" to="/">
             <span>{branding.productName}</span>
           </Link>
+          <nav className="topbar-nav" aria-label="Primary">
+            <Link to="/">Ingest</Link>
+            <Link to="/library">Library</Link>
+            <Link to="/admin">Admin</Link>
+          </nav>
           <div className="topbar-actions">
             {auth.loading ? (
               <span className="muted">Checking session…</span>
@@ -37,17 +46,20 @@ export function App() {
             )}
           </div>
         </header>
-        <main className={inReader ? "main-reader" : undefined}>
+        <main className={inReader || inPreview ? "main-reader" : undefined}>
           <Routes>
             <Route path="/" element={<HomePage />} />
+            <Route path="/library" element={<LibraryPage />} />
+            <Route path="/admin" element={<AdminPage />} />
             <Route path="/documents/:id" element={<ReaderPage />} />
+            <Route path="/preview/:token" element={<PreviewPage />} />
             <Route path="/auth/callback" element={<p className="muted">Completing sign-in…</p>} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
-        {!inReader && (
+        {!inReader && !inPreview && (
           <footer className="footer">
-            Originals preserved. Structure is derived and marked when inferred. Temporary name configurable via branding.
+            Originals preserved. Exports are generated artifacts. Temporary name configurable via branding.
           </footer>
         )}
       </div>

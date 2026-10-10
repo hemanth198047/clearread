@@ -1,9 +1,10 @@
 package com.clearread.export;
 
+import com.clearread.transform.cleardoc.ClearDocModels.ClearDoc;
+
 /**
- * Phase 1 seam only — full conversion suite ships in Phase 4 (MD + sanitized HTML).
- * Implementations convert ClearDoc (derived IR) into readable formats and must mark
- * outputs as generated artifacts distinct from immutable originals.
+ * Converts ClearDoc (derived IR) into readable formats. Outputs are generated artifacts,
+ * never a substitute for the immutable original.
  */
 public interface ExportConverter {
 
@@ -12,4 +13,9 @@ public interface ExportConverter {
     String converterId();
 
     String converterVersion();
+
+    ExportResult convert(ClearDoc doc);
+
+    record ExportResult(byte[] bytes, String contentType, String filenameSuffix) {
+    }
 }
