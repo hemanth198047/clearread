@@ -1,0 +1,97 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: clearread-api
+  datasource:
+    url: ${CLEARREAD_DB_URL:jdbc:postgresql://localhost:5432/clearread}
+    username: ${CLEARREAD_DB_USER:clearread}
+    password: ${CLEARREAD_DB_PASSWORD:clearread}
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${CLEARREAD_OIDC_ISSUER:http://localhost:8081/realms/clearread}
+          jwk-set-uri: ${CLEARREAD_OIDC_JWK_SET_URI:http://localhost:8081/realms/clearread/protocol/openid-connect/certs}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: when_authorized
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
+
+clearread:
+  branding:
+    product-name: ${CLEARREAD_PRODUCT_NAME:ClearRead}
+    primary-color: ${CLEARREAD_PRIMARY_COLOR:#1a5f4a}
+    secondary-color: ${CLEARREAD_SECONDARY_COLOR:#c4a35a}
+    logo-url: ${CLEARREAD_LOGO_URL:}
+  limits:
+    max-upload-bytes: ${CLEARREAD_MAX_UPLOAD_BYTES:10485760}
+    max-nesting-depth: 64
+    max-csv-rows: 50000
+  fetch:
+    allow-private-network: ${CLEARREAD_FETCH_ALLOW_PRIVATE:false}
+    max-redirects: 3
+    connect-timeout-ms: 5000
+    read-timeout-ms: 15000
+    total-timeout-ms: 30000
+    max-bytes: ${CLEARREAD_MAX_UPLOAD_BYTES:10485760}
+    max-decompressed-bytes: ${CLEARREAD_MAX_UPLOAD_BYTES:10485760}
+    allowed-ports: 80,443
+  storage:
+    endpoint: ${CLEARREAD_S3_ENDPOINT:http://localhost:9000}
+    region: ${CLEARREAD_S3_REGION:us-east-1}
+    access-key: ${CLEARREAD_S3_ACCESS_KEY:test}
+    secret-key: ${CLEARREAD_S3_SECRET_KEY:test}
+    bucket: ${CLEARREAD_S3_BUCKET:clearread}
+    path-style: true
+  jobs:
+    enabled: true
+    poll-interval-ms: 1000
+    lease-seconds: 60
+    batch-size: 5
+    max-concurrent-per-tenant: 3
+    worker-id: ${HOSTNAME:local-api}
+  ai:
+    # Global default; workspace ai_enabled must still be true. Core reader never requires AI.
+    default-provider: ${CLEARREAD_AI_PROVIDER:mock-local}
+    timeout-ms: ${CLEARREAD_AI_TIMEOUT_MS:15000}
+    max-retries: ${CLEARREAD_AI_MAX_RETRIES:2}
+    log-document-content: false
+    ollama:
+      enabled: ${CLEARREAD_AI_OLLAMA_ENABLED:false}
+      base-url: ${CLEARREAD_AI_OLLAMA_URL:http://127.0.0.1:11434}
+      model: ${CLEARREAD_AI_OLLAMA_MODEL:llama3.2}
+    external:
+      enabled: ${CLEARREAD_AI_EXTERNAL_ENABLED:false}
+      base-url: ${CLEARREAD_AI_EXTERNAL_URL:}
+      api-key: ${CLEARREAD_AI_EXTERNAL_API_KEY:}
+      model: ${CLEARREAD_AI_EXTERNAL_MODEL:}
+  cors:
+    allowed-origins: ${CLEARREAD_CORS_ORIGINS:http://localhost:5173,http://localhost:3000}
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+logging:
+  level:
+    com.clearread: INFO
+    org.springframework.security: WARN

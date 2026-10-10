@@ -1,0 +1,31 @@
+import { describe, expect, it } from "vitest";
+import type { ClearDoc } from "./ClearDocView";
+import { segmentBody, segmentOutline } from "./segmentation";
+
+const doc: ClearDoc = {
+  metadata: { title: "T" },
+  outline: [
+    { level: 1, text: "A", nodeId: "n1" },
+    { level: 2, text: "B", nodeId: "n2" },
+    { level: 3, text: "C", nodeId: "n3" },
+  ],
+  warnings: [],
+  body: [
+    { type: "heading", level: 1, nodeId: "n1" },
+    { type: "paragraph", nodeId: "p1" },
+    { type: "blockquote", nodeId: "q1" },
+    { type: "thematicBreak", nodeId: "hr1" },
+  ],
+};
+
+describe("segmentation", () => {
+  it("conservative drops blockquotes", () => {
+    const body = segmentBody(doc, "conservative");
+    expect(body.every((n) => n.type !== "blockquote")).toBe(true);
+    expect(segmentOutline(doc, "conservative").every((o) => o.level <= 2)).toBe(true);
+  });
+
+  it("detailed keeps full body", () => {
+    expect(segmentBody(doc, "detailed")).toHaveLength(doc.body.length);
+  });
+});
