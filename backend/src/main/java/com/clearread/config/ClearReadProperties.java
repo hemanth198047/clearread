@@ -87,6 +87,8 @@ public class ClearReadProperties {
         private long maxUploadBytes = 10 * 1024 * 1024;
         private int maxNestingDepth = 64;
         private int maxCsvRows = 50_000;
+        /** Per-client IP HTTP requests per minute; 0 disables. */
+        private int apiRequestsPerMinute = 600;
 
         public long getMaxUploadBytes() {
             return maxUploadBytes;
@@ -110,6 +112,14 @@ public class ClearReadProperties {
 
         public void setMaxCsvRows(int maxCsvRows) {
             this.maxCsvRows = maxCsvRows;
+        }
+
+        public int getApiRequestsPerMinute() {
+            return apiRequestsPerMinute;
+        }
+
+        public void setApiRequestsPerMinute(int apiRequestsPerMinute) {
+            this.apiRequestsPerMinute = apiRequestsPerMinute;
         }
     }
 

@@ -122,7 +122,13 @@ public class TenantAdminController {
             Integer retentionDays,
             Long maxUploadBytes,
             Integer maxDocuments,
-            Boolean defaultExportDownload
+            Boolean defaultExportDownload,
+            Boolean aiEnabled,
+            Boolean aiLocalOnly,
+            Boolean aiAllowExternal,
+            String aiProviderId,
+            Integer aiDailyQuota,
+            Integer aiMaxRetries
     ) {
     }
 
@@ -135,6 +141,19 @@ public class TenantAdminController {
         UserRecord actor = MeController.requireUser(request);
         requireAdmin(tenantId);
         WorkspaceSettings current = settings.getOrDefaults(tenantId);
+        String providerId = body.aiProviderId() == null || body.aiProviderId().isBlank()
+                ? current.aiProviderId()
+                : body.aiProviderId().trim();
+        if (!List.of("mock-local", "ollama", "external").contains(providerId)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid aiProviderId");
+        }
+        boolean aiEnabled = body.aiEnabled() == null ? current.aiEnabled() : body.aiEnabled();
+        boolean aiLocalOnly = body.aiLocalOnly() == null ? current.aiLocalOnly() : body.aiLocalOnly();
+        boolean aiAllowExternal = body.aiAllowExternal() == null ? current.aiAllowExternal() : body.aiAllowExternal();
+        if (aiEnabled && "external".equals(providerId) && (aiLocalOnly || !aiAllowExternal)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "External provider requires aiLocalOnly=false and aiAllowExternal=true");
+        }
         WorkspaceSettings next = new WorkspaceSettings(
                 tenantId,
                 body.sharingEnabled() == null ? current.sharingEnabled() : body.sharingEnabled(),
@@ -142,10 +161,17 @@ public class TenantAdminController {
                 body.retentionDays() == null ? current.retentionDays() : body.retentionDays(),
                 body.maxUploadBytes() == null ? current.maxUploadBytes() : body.maxUploadBytes(),
                 body.maxDocuments() == null ? current.maxDocuments() : body.maxDocuments(),
-                body.defaultExportDownload() == null ? current.defaultExportDownload() : body.defaultExportDownload()
+                body.defaultExportDownload() == null ? current.defaultExportDownload() : body.defaultExportDownload(),
+                aiEnabled,
+                aiLocalOnly,
+                aiAllowExternal,
+                providerId,
+                body.aiDailyQuota() == null ? current.aiDailyQuota() : Math.max(0, body.aiDailyQuota()),
+                body.aiMaxRetries() == null ? current.aiMaxRetries() : Math.max(0, Math.min(5, body.aiMaxRetries()))
         );
         settings.upsert(next);
-        audit.record(actor.id(), "workspace.settings_update", "tenant", tenantId.toString(), Map.of());
+        audit.record(actor.id(), "workspace.settings_update", "tenant", tenantId.toString(),
+                Map.of("aiEnabled", next.aiEnabled(), "aiProviderId", next.aiProviderId()));
         return toSettingsMap(next);
     }
 
@@ -293,6 +319,12 @@ public class TenantAdminController {
         m.put("maxDocuments", s.maxDocuments());
         m.put("defaultExportDownload", s.defaultExportDownload());
         m.put("retentionNote", s.retentionDays() == null ? "indefinite (Q4 default)" : s.retentionDays() + " days");
+        m.put("aiEnabled", s.aiEnabled());
+        m.put("aiLocalOnly", s.aiLocalOnly());
+        m.put("aiAllowExternal", s.aiAllowExternal());
+        m.put("aiProviderId", s.aiProviderId());
+        m.put("aiDailyQuota", s.aiDailyQuota());
+        m.put("aiMaxRetries", s.aiMaxRetries());
         return m;
     }
 }

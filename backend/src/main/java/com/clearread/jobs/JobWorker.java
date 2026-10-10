@@ -1,5 +1,6 @@
 package com.clearread.jobs;
 
+import com.clearread.ai.EnrichmentService;
 import com.clearread.annotations.AnnotationService;
 import com.clearread.capabilities.CapabilityService;
 import com.clearread.config.ClearReadProperties;
@@ -44,6 +45,7 @@ public class JobWorker {
     private final SafeHttpFetcher fetcher;
     private final SearchService searchService;
     private final AnnotationService annotationService;
+    private final EnrichmentService enrichmentService;
 
     public JobWorker(
             JobRepository jobRepository,
@@ -55,7 +57,8 @@ public class JobWorker {
             ClearReadProperties properties,
             SafeHttpFetcher fetcher,
             SearchService searchService,
-            AnnotationService annotationService
+            AnnotationService annotationService,
+            EnrichmentService enrichmentService
     ) {
         this.jobRepository = jobRepository;
         this.documentRepository = documentRepository;
@@ -67,6 +70,7 @@ public class JobWorker {
         this.fetcher = fetcher;
         this.searchService = searchService;
         this.annotationService = annotationService;
+        this.enrichmentService = enrichmentService;
     }
 
     @Scheduled(fixedDelayString = "${clearread.jobs.poll-interval-ms:1000}")
@@ -91,16 +95,19 @@ public class JobWorker {
             } catch (UrlAccessPolicy.Denied denied) {
                 log.warn("Job {} policy denied: {}", job.id(), denied.getMessage());
                 jobRepository.fail(job.id(), job.leaseToken(), denied.getMessage(), job.attempt(), job.maxAttempts());
-                markDocFailed(job);
+                markDocFailedIfIngest(job);
             } catch (Exception ex) {
                 log.warn("Job {} failed: {}", job.id(), ex.getMessage());
                 jobRepository.fail(job.id(), job.leaseToken(), ex.getMessage(), job.attempt(), job.maxAttempts());
-                markDocFailed(job);
+                markDocFailedIfIngest(job);
             }
         }
     }
 
-    private void markDocFailed(JobRepository.JobRecord job) {
+    private void markDocFailedIfIngest(JobRepository.JobRecord job) {
+        if ("enrich.document".equals(job.type())) {
+            return; // enrichment failure must not break the normal reader path
+        }
         try {
             JsonNode payload = objectMapper.readTree(job.payloadJson());
             UUID documentId = UUID.fromString(payload.path("documentId").asText());
@@ -114,8 +121,15 @@ public class JobWorker {
         switch (job.type()) {
             case "ingest.fetch" -> processFetch(job);
             case "transform.document" -> processTransform(job);
+            case "enrich.document" -> processEnrich(job);
             default -> throw new IllegalArgumentException("Unknown job type: " + job.type());
         }
+    }
+
+    private void processEnrich(JobRepository.JobRecord job) throws Exception {
+        JsonNode payload = objectMapper.readTree(job.payloadJson());
+        UUID enrichmentId = UUID.fromString(payload.path("enrichmentId").asText());
+        enrichmentService.processJob(job.tenantId(), enrichmentId);
     }
 
     private void processFetch(JobRepository.JobRecord job) throws Exception {

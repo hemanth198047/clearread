@@ -48,13 +48,19 @@ public class JobRepository {
     }
 
     public void enqueue(UUID id, UUID tenantId, String type, String payloadJson, String idempotencyKey) {
+        enqueueWithMaxAttempts(id, tenantId, type, payloadJson, idempotencyKey, 5);
+    }
+
+    public void enqueueWithMaxAttempts(
+            UUID id, UUID tenantId, String type, String payloadJson, String idempotencyKey, int maxAttempts
+    ) {
         jdbc.update(
                 """
-                INSERT INTO jobs (id, tenant_id, type, payload_json, status, idempotency_key)
-                VALUES (?, ?, ?, ?::jsonb, 'pending', ?)
+                INSERT INTO jobs (id, tenant_id, type, payload_json, status, idempotency_key, max_attempts)
+                VALUES (?, ?, ?, ?::jsonb, 'pending', ?, ?)
                 ON CONFLICT (tenant_id, idempotency_key) DO NOTHING
                 """,
-                id, tenantId, type, payloadJson, idempotencyKey
+                id, tenantId, type, payloadJson, idempotencyKey, Math.max(1, maxAttempts)
         );
     }
 

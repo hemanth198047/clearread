@@ -34,6 +34,7 @@ dependencies {
     implementation("org.commonmark:commonmark-ext-gfm-strikethrough:0.24.0")
     implementation("org.commonmark:commonmark-ext-task-list-items:0.24.0")
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.0")
+    implementation("io.micrometer:micrometer-registry-prometheus")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")

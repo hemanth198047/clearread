@@ -8,6 +8,12 @@ type Settings = {
   retentionDays: number | null;
   maxUploadBytes: number;
   retentionNote: string;
+  aiEnabled: boolean;
+  aiLocalOnly: boolean;
+  aiAllowExternal: boolean;
+  aiProviderId: string;
+  aiDailyQuota: number;
+  aiMaxRetries: number;
 };
 
 type Job = { id: string; type: string; status: string; documentId: string; lastError: string };
@@ -42,6 +48,7 @@ export function AdminPage() {
   async function saveSettings() {
     if (!token || !tenantId || !settings) return;
     setMsg(null);
+    setError(null);
     try {
       const next = (await apiFetch(`/v1/tenants/${tenantId}/settings`, token, {
         method: "PUT",
@@ -61,40 +68,101 @@ export function AdminPage() {
   return (
     <section className="panel">
       <h1>Workspace admin</h1>
-      <p className="muted">Sharing policy, retention (default indefinite), upload limit, and job inspection.</p>
+      <p className="muted">Sharing policy, retention, upload limit, optional AI enrichment, and job inspection.</p>
       {error && <p role="alert">{error}</p>}
       {msg && <p className="status-line">{msg}</p>}
       {settings && (
-        <div className="admin-grid">
-          <label className="check">
-            <input
-              type="checkbox"
-              checked={settings.sharingEnabled}
-              onChange={(e) => setSettings({ ...settings, sharingEnabled: e.target.checked })}
-            />
-            Sharing enabled
-          </label>
-          <label className="check">
-            <input
-              type="checkbox"
-              checked={settings.anonymousPreviewEnabled}
-              onChange={(e) => setSettings({ ...settings, anonymousPreviewEnabled: e.target.checked })}
-            />
-            Anonymous preview enabled
-          </label>
-          <label>
-            Max upload bytes
-            <input
-              type="number"
-              value={settings.maxUploadBytes}
-              onChange={(e) => setSettings({ ...settings, maxUploadBytes: Number(e.target.value) })}
-            />
-          </label>
-          <p className="muted">Retention: {settings.retentionNote}</p>
+        <>
+          <div className="admin-grid">
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={settings.sharingEnabled}
+                onChange={(e) => setSettings({ ...settings, sharingEnabled: e.target.checked })}
+              />
+              Sharing enabled
+            </label>
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={settings.anonymousPreviewEnabled}
+                onChange={(e) => setSettings({ ...settings, anonymousPreviewEnabled: e.target.checked })}
+              />
+              Anonymous preview enabled
+            </label>
+            <label>
+              Max upload bytes
+              <input
+                type="number"
+                value={settings.maxUploadBytes}
+                onChange={(e) => setSettings({ ...settings, maxUploadBytes: Number(e.target.value) })}
+              />
+            </label>
+            <p className="muted">Retention: {settings.retentionNote}</p>
+          </div>
+
+          <h2>Optional AI enrichment</h2>
+          <p className="muted">
+            Disabled by default. Core reader works without AI. External providers require explicit allow-external and
+            local-only off.
+          </p>
+          <div className="admin-grid">
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={settings.aiEnabled}
+                onChange={(e) => setSettings({ ...settings, aiEnabled: e.target.checked })}
+              />
+              AI enrichment enabled
+            </label>
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={settings.aiLocalOnly}
+                onChange={(e) => setSettings({ ...settings, aiLocalOnly: e.target.checked })}
+              />
+              Local-only processing
+            </label>
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={settings.aiAllowExternal}
+                onChange={(e) => setSettings({ ...settings, aiAllowExternal: e.target.checked })}
+              />
+              Allow sending content externally
+            </label>
+            <label>
+              Provider
+              <select
+                value={settings.aiProviderId}
+                onChange={(e) => setSettings({ ...settings, aiProviderId: e.target.value })}
+              >
+                <option value="mock-local">mock-local (deterministic demo)</option>
+                <option value="ollama">ollama (local)</option>
+                <option value="external">external (requires allow-external)</option>
+              </select>
+            </label>
+            <label>
+              Daily quota
+              <input
+                type="number"
+                value={settings.aiDailyQuota}
+                onChange={(e) => setSettings({ ...settings, aiDailyQuota: Number(e.target.value) })}
+              />
+            </label>
+            <label>
+              Max retries
+              <input
+                type="number"
+                value={settings.aiMaxRetries}
+                onChange={(e) => setSettings({ ...settings, aiMaxRetries: Number(e.target.value) })}
+              />
+            </label>
+          </div>
           <button type="button" onClick={() => void saveSettings()}>
             Save settings
           </button>
-        </div>
+        </>
       )}
 
       <h2>Processing jobs</h2>

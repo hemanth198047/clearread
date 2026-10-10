@@ -1,5 +1,8 @@
 name: clearread
 
+# Phase 6: version tags pinned below. For production, resolve and append @sha256:… digests
+# (see docs/phase-6/operator-runbook.md).
+
 services:
   db:
     image: postgres:16-alpine
