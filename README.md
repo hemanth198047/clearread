@@ -27,7 +27,9 @@ Then open **http://localhost:5173**
 | Web | http://localhost:5173 | SPA |
 | API | http://localhost:8080 | REST `/v1`, health `/v1/health` |
 | Keycloak | http://localhost:8081 | Admin `admin` / `admin` |
-| S3 (LocalStack) | http://localhost:9000 | Access key `test` / `test` (S3 API on mapped port) |
+| S3 (LocalStack) | http://localhost:9000 | Access key `test` / `test` (S3 API; substitutes for MinIO when Hub pulls are blocked) |
+
+`scripts/start.sh` starts the Compose stack and, if the API container cannot become healthy, automatically falls back to a host-run API + Vite against the published dependency ports. `scripts/stop.sh` still only stops the ClearRead Compose project and ClearRead-tracked host PIDs.
 
 **Demo login (Keycloak):** username `demo`, password `demo`
 

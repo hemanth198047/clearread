@@ -75,6 +75,9 @@ services:
       CLEARREAD_OIDC_JWK_SET_URI: http://keycloak:8081/realms/clearread/protocol/openid-connect/certs
       CLEARREAD_CORS_ORIGINS: http://localhost:5173,http://localhost:3000
       CLEARREAD_PRODUCT_NAME: ClearRead
+      JAVA_TOOL_OPTIONS: "-Djava.net.useSystemProxies=false"
+      NO_PROXY: "db,minio,keycloak,localhost,127.0.0.1"
+      no_proxy: "db,minio,keycloak,localhost,127.0.0.1"
     ports:
       - "8080:8080"
     depends_on:
@@ -84,6 +87,7 @@ services:
         condition: service_healthy
       keycloak:
         condition: service_started
+    restart: on-failure
 
   web:
     build:

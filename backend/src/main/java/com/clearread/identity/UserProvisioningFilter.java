@@ -37,7 +37,17 @@ public class UserProvisioningFilter extends OncePerRequestFilter {
         try {
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();
             if (auth != null && auth.getPrincipal() instanceof Jwt jwt) {
-                String subject = jwt.getSubject();
+                // Some local IdP access tokens omit `sub` (e.g. lightweight tokens); fall back stably.
+                String subject = firstNonBlank(
+                        jwt.getSubject(),
+                        jwt.getClaimAsString("preferred_username"),
+                        jwt.getClaimAsString("email"),
+                        jwt.getClaimAsString("sid")
+                );
+                if (subject == null) {
+                    filterChain.doFilter(request, response);
+                    return;
+                }
                 String email = jwt.getClaimAsString("email");
                 String name = firstNonBlank(jwt.getClaimAsString("name"), jwt.getClaimAsString("preferred_username"), email, subject);
                 UserRecord user = userRepository.upsert(subject, email, name);
