@@ -39,5 +39,11 @@ class MarkdownAdapterTest {
         assertThat(doc.body()).isNotEmpty();
         assertThat(doc.body().stream().anyMatch(n -> "codeBlock".equals(n.get("type")))).isTrue();
         assertThat(doc.body().getFirst().get("provenance")).isNotNull();
+        Object prov = doc.body().getFirst().get("provenance");
+        assertThat(prov.toString()).contains("sourceRange");
+        assertThat(doc.body().stream().noneMatch(n -> {
+            Object p = n.get("provenance");
+            return p != null && p.toString().contains("kind=inferred");
+        })).isTrue();
     }
 }

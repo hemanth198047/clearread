@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { apiFetch } from "../api/client";
 import { useAuth } from "../auth/AuthProvider";
@@ -13,6 +13,31 @@ type Doc = {
   updatedAt: string;
   deleted?: boolean;
 };
+
+/** Render server-sanitized snippet HTML allowing only <mark> (no dangerouslySetInnerHTML). */
+function SnippetText({ html }: { html: string }) {
+  const parts: ReactNode[] = [];
+  const re = /<mark>(.*?)<\/mark>/gi;
+  let last = 0;
+  let m: RegExpExecArray | null;
+  let i = 0;
+  while ((m = re.exec(html)) !== null) {
+    if (m.index > last) parts.push(decodeBasicEntities(html.slice(last, m.index)));
+    parts.push(<mark key={i++}>{decodeBasicEntities(m[1] ?? "")}</mark>);
+    last = m.index + m[0].length;
+  }
+  if (last < html.length) parts.push(decodeBasicEntities(html.slice(last)));
+  return <>{parts}</>;
+}
+
+function decodeBasicEntities(s: string): string {
+  return s
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, "&");
+}
 
 export function LibraryPage() {
   const auth = useAuth();
@@ -80,8 +105,12 @@ export function LibraryPage() {
           <ul>
             {searchHits.map((h) => (
               <li key={h.documentId}>
-                <Link to={`/documents/${h.documentId}`} dangerouslySetInnerHTML={{ __html: h.title }} />
-                <div className="muted" dangerouslySetInnerHTML={{ __html: h.snippetHtml }} />
+                <Link to={`/documents/${h.documentId}?q=${encodeURIComponent(q.trim())}`}>
+                  {decodeBasicEntities(h.title.replace(/<[^>]+>/g, ""))}
+                </Link>
+                <div className="muted">
+                  <SnippetText html={h.snippetHtml} />
+                </div>
               </li>
             ))}
           </ul>

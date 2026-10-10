@@ -35,6 +35,8 @@ dependencies {
     implementation("org.commonmark:commonmark-ext-task-list-items:0.24.0")
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.0")
     implementation("io.micrometer:micrometer-registry-prometheus")
+    // Constrained text PDF export (no HTML/CSS engine — ClearDoc prose only)
+    implementation("com.github.librepdf:openpdf:2.0.3")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")

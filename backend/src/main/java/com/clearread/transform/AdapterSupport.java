@@ -23,6 +23,10 @@ final class AdapterSupport {
         return new Provenance("source", generator, null, 1.0);
     }
 
+    static Provenance sourceProv(String generator, int startOffset, int endOffset) {
+        return new Provenance("source", generator, new ClearDocModels.SourceRange(startOffset, endOffset), 1.0);
+    }
+
     static ClearDoc build(
             UUID tenantId,
             UUID documentId,

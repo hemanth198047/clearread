@@ -26,7 +26,9 @@ import org.commonmark.node.Paragraph;
 import org.commonmark.node.SoftLineBreak;
 import org.commonmark.node.StrongEmphasis;
 import org.commonmark.node.Text;
+import org.commonmark.node.SourceSpan;
 import org.commonmark.node.ThematicBreak;
+import org.commonmark.parser.IncludeSourceSpans;
 import org.commonmark.parser.Parser;
 import org.springframework.stereotype.Component;
 
@@ -49,6 +51,7 @@ public class MarkdownAdapter implements FormatAdapter {
                     StrikethroughExtension.create(),
                     TaskListItemsExtension.create()
             ))
+            .includeSourceSpans(IncludeSourceSpans.BLOCKS)
             .build();
 
     @Override
@@ -89,7 +92,7 @@ public class MarkdownAdapter implements FormatAdapter {
                 String nodeId = nextId();
                 List<Map<String, Object>> children = inlineChildren(heading);
                 String plain = plainText(children);
-                body.add(ClearDocModels.heading(heading.getLevel(), nodeId, children, sourceProvenance()));
+                body.add(ClearDocModels.heading(heading.getLevel(), nodeId, children, sourceProvenance(heading)));
                 outline.add(new OutlineItem(heading.getLevel(), plain, nodeId));
             }
 
@@ -100,25 +103,25 @@ public class MarkdownAdapter implements FormatAdapter {
                     return;
                 }
                 String nodeId = nextId();
-                body.add(ClearDocModels.paragraph(nodeId, inlineChildren(paragraph), sourceProvenance()));
+                body.add(ClearDocModels.paragraph(nodeId, inlineChildren(paragraph), sourceProvenance(paragraph)));
             }
 
             @Override
             public void visit(BulletList bulletList) {
                 String nodeId = nextId();
-                body.add(ClearDocModels.bulletList(nodeId, listItems(bulletList), sourceProvenance()));
+                body.add(ClearDocModels.bulletList(nodeId, listItems(bulletList), sourceProvenance(bulletList)));
             }
 
             @Override
             public void visit(OrderedList orderedList) {
                 String nodeId = nextId();
-                body.add(ClearDocModels.orderedList(nodeId, listItems(orderedList), orderedList.getMarkerStartNumber(), sourceProvenance()));
+                body.add(ClearDocModels.orderedList(nodeId, listItems(orderedList), orderedList.getMarkerStartNumber(), sourceProvenance(orderedList)));
             }
 
             @Override
             public void visit(FencedCodeBlock codeBlock) {
                 String nodeId = nextId();
-                body.add(ClearDocModels.codeBlock(nodeId, codeBlock.getInfo(), codeBlock.getLiteral(), sourceProvenance()));
+                body.add(ClearDocModels.codeBlock(nodeId, codeBlock.getInfo(), codeBlock.getLiteral(), sourceProvenance(codeBlock)));
             }
 
             @Override
@@ -128,16 +131,16 @@ public class MarkdownAdapter implements FormatAdapter {
                 Node child = blockQuote.getFirstChild();
                 while (child != null) {
                     if (child instanceof Paragraph p) {
-                        children.add(ClearDocModels.paragraph(nextId(), inlineChildren(p), sourceProvenance()));
+                        children.add(ClearDocModels.paragraph(nextId(), inlineChildren(p), sourceProvenance(p)));
                     }
                     child = child.getNext();
                 }
-                body.add(ClearDocModels.blockquote(nodeId, children, sourceProvenance()));
+                body.add(ClearDocModels.blockquote(nodeId, children, sourceProvenance(blockQuote)));
             }
 
             @Override
             public void visit(ThematicBreak thematicBreak) {
-                body.add(ClearDocModels.thematicBreak(nextId(), sourceProvenance()));
+                body.add(ClearDocModels.thematicBreak(nextId(), sourceProvenance(thematicBreak)));
             }
 
             private String nextId() {
@@ -153,7 +156,7 @@ public class MarkdownAdapter implements FormatAdapter {
                         Node ic = item.getFirstChild();
                         while (ic != null) {
                             if (ic instanceof Paragraph p) {
-                                itemChildren.add(ClearDocModels.paragraph(nextId(), inlineChildren(p), sourceProvenance()));
+                                itemChildren.add(ClearDocModels.paragraph(nextId(), inlineChildren(p), sourceProvenance(p)));
                             }
                             ic = ic.getNext();
                         }
@@ -182,8 +185,24 @@ public class MarkdownAdapter implements FormatAdapter {
         );
     }
 
-    private static Provenance sourceProvenance() {
-        return new Provenance("source", GENERATOR, null, 1.0);
+    private static Provenance sourceProvenance(Node node) {
+        List<SourceSpan> spans = node.getSourceSpans();
+        if (spans == null || spans.isEmpty()) {
+            return new Provenance("source", GENERATOR, null, 1.0);
+        }
+        int start = Integer.MAX_VALUE;
+        int end = 0;
+        for (SourceSpan span : spans) {
+            // SourceSpan exposes line/column; map to character offsets via inputIndex when available.
+            int inputIndex = span.getInputIndex();
+            int length = span.getLength();
+            start = Math.min(start, inputIndex);
+            end = Math.max(end, inputIndex + length);
+        }
+        if (start == Integer.MAX_VALUE) {
+            return new Provenance("source", GENERATOR, null, 1.0);
+        }
+        return new Provenance("source", GENERATOR, new ClearDocModels.SourceRange(start, end), 1.0);
     }
 
     private static List<Map<String, Object>> inlineChildren(Node parent) {

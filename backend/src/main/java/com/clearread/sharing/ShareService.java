@@ -166,6 +166,71 @@ public class ShareService {
         );
     }
 
+    /**
+     * Resolve an authenticated/anonymous share link. Enforces expiry, revoke, requireAuth, and rate limits.
+     */
+    public ShareAccess resolveShareLink(String rawToken, String clientKey, boolean callerAuthenticated) {
+        checkRate("share:" + (clientKey == null ? "unknown" : clientKey));
+        if (rawToken == null || rawToken.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Share link not found");
+        }
+        String hash = TokenHasher.sha256(rawToken);
+        List<Map<String, Object>> rows = jdbc.query(
+                """
+                SELECT id, tenant_id, document_id, require_auth, allow_download, allow_export,
+                       expires_at, revoked_at
+                FROM share_links WHERE token_hash = ?
+                """,
+                (rs, i) -> {
+                    Map<String, Object> m = new LinkedHashMap<>();
+                    m.put("id", rs.getObject("id", UUID.class));
+                    m.put("tenantId", rs.getObject("tenant_id", UUID.class));
+                    m.put("documentId", rs.getObject("document_id", UUID.class));
+                    m.put("requireAuth", rs.getBoolean("require_auth"));
+                    m.put("allowDownload", rs.getBoolean("allow_download"));
+                    m.put("allowExport", rs.getBoolean("allow_export"));
+                    m.put("expiresAt", rs.getObject("expires_at", OffsetDateTime.class));
+                    m.put("revokedAt", rs.getObject("revoked_at"));
+                    return m;
+                },
+                hash
+        );
+        if (rows.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Share link not found");
+        }
+        Map<String, Object> row = rows.getFirst();
+        if (row.get("revokedAt") != null) {
+            throw new ResponseStatusException(HttpStatus.GONE, "Share link revoked");
+        }
+        OffsetDateTime exp = (OffsetDateTime) row.get("expiresAt");
+        if (exp != null && exp.isBefore(OffsetDateTime.now())) {
+            throw new ResponseStatusException(HttpStatus.GONE, "Share link expired");
+        }
+        if (Boolean.TRUE.equals(row.get("requireAuth")) && !callerAuthenticated) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authentication required for this share link");
+        }
+        DocumentRecord doc = documents.findByTenantAndId((UUID) row.get("tenantId"), (UUID) row.get("documentId"))
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Document not found"));
+        audit.recordSystem((UUID) row.get("tenantId"), "share.resolve", "share_link", row.get("id").toString(),
+                Map.of("documentId", doc.id().toString()));
+        return new ShareAccess(
+                (UUID) row.get("tenantId"),
+                doc.id(),
+                doc.currentRevisionId(),
+                (Boolean) row.get("allowDownload"),
+                (Boolean) row.get("allowExport")
+        );
+    }
+
+    public record ShareAccess(
+            UUID tenantId,
+            UUID documentId,
+            UUID revisionId,
+            boolean allowDownload,
+            boolean allowExport
+    ) {
+    }
+
     public PreviewAccess resolvePreview(String rawToken, String clientKey) {
         checkRate(clientKey);
         if (rawToken == null || rawToken.isBlank()) {

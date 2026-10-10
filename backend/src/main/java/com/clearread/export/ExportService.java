@@ -98,10 +98,6 @@ public class ExportService {
         requireAuthor();
         ExportConverter converter = converters.get(targetFormat);
         if (converter == null) {
-            if ("pdf".equals(targetFormat)) {
-                throw new ResponseStatusException(HttpStatus.UNSUPPORTED_MEDIA_TYPE,
-                        "PDF export is not registered yet (deferred adapter; use markdown or html)");
-            }
             throw new ResponseStatusException(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "Unsupported export format");
         }
         ClearDoc cleardoc = documentService.getCleardoc(user, documentId);

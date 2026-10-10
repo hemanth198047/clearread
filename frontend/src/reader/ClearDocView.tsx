@@ -1,6 +1,21 @@
-import { useMemo, useState, type ReactNode, type RefObject } from "react";
+import { useEffect, useMemo, useState, type ReactNode, type RefObject } from "react";
 import type { ReaderPreferences } from "./preferences";
 import { segmentBody } from "./segmentation";
+
+function safeHref(href: unknown): string {
+  const raw = String(href ?? "#");
+  const lower = raw.toLowerCase().trim();
+  if (
+    lower.startsWith("https:") ||
+    lower.startsWith("http:") ||
+    lower.startsWith("mailto:") ||
+    lower.startsWith("#") ||
+    lower.startsWith("/")
+  ) {
+    return raw;
+  }
+  return "#";
+}
 
 export type ClearDoc = {
   metadata: { title: string };
@@ -54,7 +69,7 @@ function renderInlines(
     if (n.type === "hardBreak") return <br key={i} />;
     if (n.type === "link") {
       return (
-        <a key={i} href={String(n.href ?? "#")}>
+        <a key={i} href={safeHref(n.href)} rel="noopener noreferrer">
           {renderInlines(n.children as Inline[], query, currentHit, hitCounter)}
         </a>
       );
@@ -390,20 +405,23 @@ export function ClearDocView({
     });
   };
 
-  // Progressive reveal for large documents (keeps find/nav usable)
-  const onScroll = () => {
+  // Progressive reveal listens on the scroll parent (.reader-main), not the article
+  useEffect(() => {
     const el = scrollParentRef?.current;
     if (!el) return;
-    if (el.scrollTop + el.clientHeight > el.scrollHeight - 400 && visibleCount < body.length) {
-      setVisibleCount((c) => Math.min(body.length, c + CHUNK));
-    }
-  };
+    const onScroll = () => {
+      if (el.scrollTop + el.clientHeight > el.scrollHeight - 400 && visibleCount < body.length) {
+        setVisibleCount((c) => Math.min(body.length, c + CHUNK));
+      }
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, [scrollParentRef, body.length, visibleCount]);
 
   return (
     <article
       id="reader-article"
       className="reader-article"
-      onScroll={onScroll}
       aria-label={doc.metadata?.title ?? "Document"}
     >
       <h1>{doc.metadata?.title ?? "Document"}</h1>

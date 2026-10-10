@@ -27,6 +27,9 @@ public class SecurityHeadersFilter extends OncePerRequestFilter {
         response.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
         response.setHeader("Cross-Origin-Opener-Policy", "same-origin");
         response.setHeader("Cross-Origin-Resource-Policy", "same-site");
+        // API responses: deny inline scripts; SPA CSP is also set on the web nginx layer.
+        response.setHeader("Content-Security-Policy",
+                "default-src 'none'; frame-ancestors 'none'; base-uri 'none'");
         if (request.isSecure() || "https".equalsIgnoreCase(request.getHeader("X-Forwarded-Proto"))) {
             response.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
         }

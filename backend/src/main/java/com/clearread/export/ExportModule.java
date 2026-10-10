@@ -5,7 +5,7 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 
 /**
- * Export/conversion module stub (D-EXPORT-1). No converters registered in Phase 1.
+ * Export/conversion module — registers Markdown, sanitized HTML, and constrained PDF converters.
  */
 @Component
 public class ExportModule {

@@ -18,6 +18,9 @@ export function App() {
   return (
     <ReaderPreferencesProvider>
       <div className={`app-shell${inReader ? " app-shell-reader" : ""}`}>
+        <a className="skip-link" href="#main">
+          Skip to main content
+        </a>
         <header className="topbar">
           <Link className="brand" to="/">
             <span>{branding.productName}</span>
@@ -46,7 +49,7 @@ export function App() {
             )}
           </div>
         </header>
-        <main className={inReader || inPreview ? "main-reader" : undefined}>
+        <main id="main" className={inReader || inPreview ? "main-reader" : undefined}>
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/library" element={<LibraryPage />} />

@@ -27,7 +27,10 @@ if ! docker compose -p "$PROJECT" -f "$COMPOSE_FILE" build api web; then
 fi
 
 echo "Starting ClearRead Compose stack..."
-docker compose -p "$PROJECT" -f "$COMPOSE_FILE" up -d db minio keycloak api web
+# Prefer full stack; if API never becomes healthy (e.g. broken container bridge networking),
+# fall through to host API + Vite against published dependency ports.
+docker compose -p "$PROJECT" -f "$COMPOSE_FILE" up -d db minio keycloak || true
+docker compose -p "$PROJECT" -f "$COMPOSE_FILE" up -d api web || true
 
 echo "$PROJECT" > "$PID_DIR/compose.project"
 echo "$COMPOSE_FILE" > "$PID_DIR/compose.file"

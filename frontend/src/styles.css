@@ -465,6 +465,47 @@ button.linkish {
   }
 }
 
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 1000;
+  padding: 0.5rem 0.75rem;
+  background: var(--color-deep);
+  color: #f7f4ee;
+  text-decoration: none;
+  border-radius: 0 0 0.35rem 0;
+}
+
+.skip-link:focus {
+  left: 0;
+}
+
+.share-panel .share-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  align-items: end;
+  margin-bottom: 1rem;
+}
+
+.share-panel .share-token {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  white-space: pre-wrap;
+  background: color-mix(in srgb, var(--color-mist) 55%, transparent);
+  padding: 0.75rem;
+  border-radius: 0.35rem;
+}
+
+.org-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+  align-items: center;
+  margin: 0 0 1rem;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
