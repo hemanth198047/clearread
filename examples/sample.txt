@@ -1,0 +1,5 @@
+PHASE 1 NOTES
+
+Paste or upload this plain text file.
+
+ClearRead will infer paragraphs. Lines in ALL CAPS may be marked as inferred headings.
