@@ -1,11 +1,39 @@
 #!/usr/bin/env bash
-# ClearRead restore helper (Phase 6). Restores a pg_dump custom-format file.
+# ClearRead restore helper (v1.0). Restores a pg_dump custom-format file; optionally object prefixes.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-SRC="${1:?Usage: restore.sh /path/to/backup-dir-or-dump}"
+
+WITH_OBJECTS=0
+SRC=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --with-objects) WITH_OBJECTS=1; shift ;;
+    -h|--help)
+      cat <<'USAGE'
+Usage: restore.sh [--with-objects] /path/to/backup-dir-or-dump
+
+  Restores postgres.dump (or a bare .dump file).
+  --with-objects: if OUT/objects/tenants exists, aws s3 sync back to the bucket.
+USAGE
+      exit 0
+      ;;
+    *)
+      if [[ -n "$SRC" ]]; then
+        echo "Unexpected argument: $1" >&2
+        exit 2
+      fi
+      SRC="$1"
+      shift
+      ;;
+  esac
+done
+
+SRC="${SRC:?Usage: restore.sh [--with-objects] /path/to/backup-dir-or-dump}"
 
 DUMP="$SRC"
+BACKUP_DIR=""
 if [[ -d "$SRC" ]]; then
+  BACKUP_DIR="$SRC"
   DUMP="$SRC/postgres.dump"
 fi
 [[ -f "$DUMP" ]] || { echo "Missing dump: $DUMP" >&2; exit 1; }
@@ -35,5 +63,26 @@ if [[ "$rc" -gt 1 ]]; then
   exit "$rc"
 fi
 echo "DB restore finished (exit $rc)."
-echo "Next: re-sync object-store tenants/* from the same backup window, then:"
+
+if [[ "$WITH_OBJECTS" -eq 1 ]]; then
+  OBJ_DIR="${BACKUP_DIR:-}/objects/tenants"
+  if [[ -z "$BACKUP_DIR" || ! -d "$OBJ_DIR" ]]; then
+    echo "ERROR: --with-objects needs a backup directory containing objects/tenants/" >&2
+    exit 1
+  fi
+  S3_ENDPOINT="${CLEARREAD_S3_ENDPOINT:-http://localhost:9000}"
+  S3_BUCKET="${CLEARREAD_S3_BUCKET:-clearread}"
+  S3_REGION="${CLEARREAD_S3_REGION:-us-east-1}"
+  export AWS_ACCESS_KEY_ID="${CLEARREAD_S3_ACCESS_KEY:-test}"
+  export AWS_SECRET_ACCESS_KEY="${CLEARREAD_S3_SECRET_KEY:-test}"
+  export AWS_DEFAULT_REGION="$S3_REGION"
+  if ! command -v aws >/dev/null 2>&1; then
+    echo "ERROR: --with-objects requires AWS CLI (aws)." >&2
+    exit 1
+  fi
+  echo "Syncing $OBJ_DIR → s3://$S3_BUCKET/tenants/"
+  aws --endpoint-url "$S3_ENDPOINT" s3 sync "$OBJ_DIR/" "s3://$S3_BUCKET/tenants/"
+else
+  echo "Next: re-sync object-store tenants/* from the same backup window (or restore.sh --with-objects), then:"
+fi
 echo "  curl -sf http://localhost:8080/v1/health && ./scripts/check.sh"

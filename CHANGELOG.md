@@ -1,0 +1,38 @@
+# Changelog
+
+All notable changes to ClearRead are documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [1.0.0] — 2026-10-12
+
+### Added
+
+- Formal **v1.0.0** product release (backend, frontend, OpenAPI `info.version`).
+- User, admin, deployment, backup/restore, troubleshooting, format-support, and security guides under `docs/guides/` and `docs/`.
+- Operator scripts matrix (`docs/ops/scripts.md`) for Windows + Unix green paths.
+- Optional object-store backup via `./scripts/backup.sh --with-objects` (AWS CLI → LocalStack/MinIO/S3).
+- Playwright browser smoke suite (`frontend/e2e/`) for paste→read, upload→read, share create/revoke, export download, and theme switch.
+- Release checklist / go-live updates for FINAL v1.0.
+
+### Changed
+
+- Package versions: backend `1.0.0`, frontend `1.0.0` (was `0.1.0` / `0.1.0-SNAPSHOT`).
+- Testcontainers integration tests use `disabledWithoutDocker = true` so unit suites remain green without Docker.
+
+### Security
+
+- Mermaid remains a **non-executing** safe path (source + size-limited text outline only).
+- AsciiDoc and reStructuredText stay **unsupported honesty stubs** (detect → 415); no parser engines in v1.0.
+
+### Out of scope (final for v1.0)
+
+- Office ingest, OCR, PDF ingest, collaborative realtime editing, Math/KaTeX, live Mermaid diagram engines, real AsciiDoc/RST adapters.
+
+## [0.1.0] — 2026-10-10
+
+### Added
+
+- Phases 1–6 vertical slice through production hardening (auth, ingest, reader, org workflows, optional AI, ops).
+- Post-acceptance hardening (PRs #5–#6): Mermaid text fallback, registry honesty stubs, SSRF denials, Windows DX scripts.

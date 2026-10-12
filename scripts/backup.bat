@@ -25,11 +25,14 @@ if errorlevel 1 (
 (
   echo ClearRead backup
   echo created_local=%DATE% %TIME%
+  echo product_version=1.0.0
   echo postgres=postgres.dump
-  echo object_store=sync tenants/* prefixes from S3/MinIO/LocalStack separately
-  echo restore=scripts\restore.bat or bash scripts/restore.sh — see docs/phase-6/operator-runbook.md
+  echo object_store=Postgres-only on .bat — for objects use: bash scripts/backup.sh --with-objects
+  echo manual_object_sync=aws --endpoint-url http://localhost:9000 s3 sync s3://clearread/tenants/ ./tenants-backup/
+  echo restore=scripts\restore.bat or bash scripts/restore.sh — see docs/guides/backup-restore.md
 ) > "%OUT%\MANIFEST.txt"
 
 echo Backup complete: %OUT%
+echo Object store: this .bat is Postgres-only. Prefer Git Bash: bash scripts/backup.sh --with-objects
 dir "%OUT%"
 endlocal

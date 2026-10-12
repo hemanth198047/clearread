@@ -36,7 +36,7 @@ import static org.testcontainers.containers.localstack.LocalStackContainer.Servi
 @SpringBootTest
 @AutoConfigureMockMvc
 @Import(TestJwtDecoderConfig.class)
-@Testcontainers
+@Testcontainers(disabledWithoutDocker = true)
 class Phase5AiIntegrationTest {
 
     @Container

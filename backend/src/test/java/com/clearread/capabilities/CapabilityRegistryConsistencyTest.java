@@ -41,7 +41,7 @@ class CapabilityRegistryConsistencyTest {
             registry = mapper.readTree(in);
         }
 
-        assertThat(registry.path("registryVersion").asText()).isEqualTo("2026.10.4");
+        assertThat(registry.path("registryVersion").asText()).isEqualTo("2026.10.5");
 
         Set<String> supportedIds = new HashSet<>();
         for (JsonNode format : registry.path("formats")) {

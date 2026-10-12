@@ -1,6 +1,4 @@
-# Phase 6 — Status
+# Phase 6 status
 
-**Status:** Complete — go-live package ready  
-**Branch:** `cursor/phase-5-6-hardening-f2a6`
-
-See [`exit-package.md`](./exit-package.md), [`operator-runbook.md`](./operator-runbook.md), [`threat-model-delta.md`](./threat-model-delta.md), [`go-live-decision.md`](./go-live-decision.md).
+**COMPLETE** (2026-10-10) — production hardening on `main`.  
+**FINAL v1.0.0** (2026-10-12) — release packaging, guides, Playwright suite, object-store backup helper.

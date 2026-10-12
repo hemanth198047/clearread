@@ -31,5 +31,7 @@ if %RC% GTR 1 (
 )
 
 echo DB restore finished (exit %RC%).
-echo Re-sync object-store tenants/* from the same backup window, then run scripts\check.bat
+echo Re-sync object-store tenants/* from the same backup window
+echo   (or Git Bash: bash scripts/restore.sh --with-objects "%SRC%")
+echo then run scripts\check.bat — see docs\guides\backup-restore.md
 endlocal
