@@ -32,6 +32,34 @@ echo "Project: $PROJECT"
 echo
 
 next_action=""
+created_stuck=0
+
+print_created_stuck_recovery() {
+  cat <<'EOF'
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+DIAGNOSIS: Containers stuck in Created — Docker Desktop / WSL is wedged
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  STATUS=Created with empty logs means `docker start` never completed.
+  This is NOT Keycloak slowness, NOT a port conflict, NOT a ClearRead
+  healthcheck bug. App Compose cannot work around a wedged Docker engine.
+
+  If `docker start clearread-db-1` itself hangs, ONLY this recovery works:
+
+  1. Quit Docker Desktop completely (tray icon → Quit)
+  2. In an elevated / normal PowerShell or cmd:
+       wsl --shutdown
+  3. Start Docker Desktop and wait until the whale icon is green / "Running"
+  4. Then:
+       docker start clearread-db-1
+     (use a short patience window — if THIS hangs, repeat steps 1–3)
+  5. Re-run:  ./scripts/doctor.sh   then   ./scripts/start-deps.sh
+
+  Docs: docs/ops/compose-deps-fix.md#containers-stuck-in-created
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+EOF
+}
 
 if ! command -v docker >/dev/null 2>&1; then
   echo "FAIL  Docker CLI not found on PATH"
@@ -115,6 +143,39 @@ if ! "${COMPOSE[@]}" ps -a 2>&1; then
 fi
 
 echo
+echo "--- Containers stuck in Created? ---"
+for svc in db minio keycloak; do
+  local_line="$("${COMPOSE[@]}" ps -a --format '{{.Service}}|{{.State}}|{{.Status}}|{{.Name}}' 2>/dev/null | awk -F'|' -v s="$svc" '$1==s {print; exit}')"
+  if [[ -z "$local_line" ]]; then
+    echo "INFO  $svc — no container yet"
+    continue
+  fi
+  state="$(echo "$local_line" | cut -d'|' -f2)"
+  status="$(echo "$local_line" | cut -d'|' -f3)"
+  cname="$(echo "$local_line" | cut -d'|' -f4)"
+  if echo "$state $status" | grep -Eiq '(^|[[:space:]])created([[:space:]]|$)'; then
+    log_bytes="$("${COMPOSE[@]}" logs --tail=20 "$svc" 2>/dev/null | wc -c | tr -d ' ')"
+    echo "FAIL  $svc STATUS=Created (never running)  container=${cname:-?}  logs≈${log_bytes} bytes"
+    if [[ "${log_bytes:-0}" -eq 0 ]] || [[ "${log_bytes:-0}" -lt 8 ]]; then
+      echo "      Empty logs confirm the process never started — Docker engine start is stuck."
+    fi
+    if [[ -n "${cname:-}" ]]; then
+      echo "--- docker inspect State ($cname) ---"
+      docker inspect --format '{{json .State}}' "$cname" 2>/dev/null || true
+      echo
+    fi
+    created_stuck=1
+  else
+    echo "OK    $svc state=${state:-?} status=${status:-?}"
+  fi
+done
+
+if [[ "$created_stuck" -eq 1 ]]; then
+  print_created_stuck_recovery
+  next_action="Quit Docker Desktop → wsl --shutdown → start Docker Desktop (wait green) → docker start clearread-db-1 → ./scripts/start-deps.sh"
+fi
+
+echo
 echo "--- Last logs (db / minio=LocalStack / keycloak) ---"
 for svc in db minio keycloak; do
   echo
@@ -126,36 +187,40 @@ done
 
 echo
 echo "--- Health probes (host / exec) ---"
-if docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^${PROJECT}-db-"; then
-  if "${COMPOSE[@]}" exec -T db pg_isready -U clearread -d clearread >/dev/null 2>&1; then
-    echo "OK    Postgres pg_isready inside container (host :${CLEARREAD_DB_PORT})"
+if [[ "$created_stuck" -eq 1 ]]; then
+  echo "SKIP  Health probes — containers never left Created (fix Docker Desktop first)"
+else
+  if docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^${PROJECT}-db-"; then
+    if "${COMPOSE[@]}" exec -T db pg_isready -U clearread -d clearread >/dev/null 2>&1; then
+      echo "OK    Postgres pg_isready inside container (host :${CLEARREAD_DB_PORT})"
+    else
+      echo "FAIL  Postgres container up but pg_isready failed"
+      next_action="${next_action:-Inspect db logs above; wipe volume if corrupt: docker volume rm ${PROJECT}_clearread_pg}"
+    fi
   else
-    echo "FAIL  Postgres container up but pg_isready failed"
-    next_action="${next_action:-Inspect db logs above; wipe volume if corrupt: docker volume rm ${PROJECT}_clearread_pg}"
+    echo "FAIL  Postgres container not running"
+    next_action="${next_action:-./scripts/start-deps.sh}"
   fi
-else
-  echo "FAIL  Postgres container not running"
-  next_action="${next_action:-./scripts/start-deps.sh}"
-fi
 
-if curl -sf --max-time 5 "http://127.0.0.1:${CLEARREAD_S3_PORT}/_localstack/health" >/dev/null 2>&1; then
-  echo "OK    LocalStack S3 health  http://127.0.0.1:${CLEARREAD_S3_PORT}/_localstack/health"
-else
-  echo "FAIL  LocalStack S3 health  http://127.0.0.1:${CLEARREAD_S3_PORT}/_localstack/health"
-  next_action="${next_action:-./scripts/start-deps.sh  # Compose service name is still 'minio'}"
-fi
+  if curl -sf --max-time 5 "http://127.0.0.1:${CLEARREAD_S3_PORT}/_localstack/health" >/dev/null 2>&1; then
+    echo "OK    LocalStack S3 health  http://127.0.0.1:${CLEARREAD_S3_PORT}/_localstack/health"
+  else
+    echo "FAIL  LocalStack S3 health  http://127.0.0.1:${CLEARREAD_S3_PORT}/_localstack/health"
+    next_action="${next_action:-./scripts/start-deps.sh  # Compose service name is still 'minio'}"
+  fi
 
-if curl -sf --max-time 5 "http://127.0.0.1:${CLEARREAD_KEYCLOAK_PORT}/realms/clearread/.well-known/openid-configuration" >/dev/null 2>&1; then
-  echo "OK    Keycloak OIDC discovery"
-else
-  echo "FAIL  Keycloak OIDC discovery  http://127.0.0.1:${CLEARREAD_KEYCLOAK_PORT}/realms/clearread/.well-known/openid-configuration"
-  next_action="${next_action:-Wait for Keycloak (1–3 min first boot) or: docker compose -p $PROJECT -f infra/compose.yaml logs --tail=80 keycloak}"
-fi
+  if curl -sf --max-time 5 "http://127.0.0.1:${CLEARREAD_KEYCLOAK_PORT}/realms/clearread/.well-known/openid-configuration" >/dev/null 2>&1; then
+    echo "OK    Keycloak OIDC discovery"
+  else
+    echo "FAIL  Keycloak OIDC discovery  http://127.0.0.1:${CLEARREAD_KEYCLOAK_PORT}/realms/clearread/.well-known/openid-configuration"
+    next_action="${next_action:-Wait for Keycloak (1–3 min first boot) or: docker compose -p $PROJECT -f infra/compose.yaml logs --tail=80 keycloak}"
+  fi
 
-if curl -sf --max-time 3 "http://127.0.0.1:${CLEARREAD_KEYCLOAK_MGMT_PORT}/health/ready" >/dev/null 2>&1; then
-  echo "OK    Keycloak management /health/ready :${CLEARREAD_KEYCLOAK_MGMT_PORT}"
-else
-  echo "WARN  Keycloak management /health/ready not ready yet (ok during first boot)"
+  if curl -sf --max-time 3 "http://127.0.0.1:${CLEARREAD_KEYCLOAK_MGMT_PORT}/health/ready" >/dev/null 2>&1; then
+    echo "OK    Keycloak management /health/ready :${CLEARREAD_KEYCLOAK_MGMT_PORT}"
+  else
+    echo "WARN  Keycloak management /health/ready not ready yet (ok during first boot)"
+  fi
 fi
 
 echo
@@ -163,10 +228,12 @@ echo "=== Next action ==="
 if [[ -n "$next_action" ]]; then
   echo "$next_action"
   echo
-  echo "If volumes look corrupt after many failed boots:"
-  echo "  ./scripts/stop.sh"
-  echo "  docker volume rm ${PROJECT}_clearread_pg ${PROJECT}_clearread_minio ${PROJECT}_clearread_keycloak"
-  echo "  ./scripts/start-deps.sh"
+  if [[ "$created_stuck" -eq 0 ]]; then
+    echo "If volumes look corrupt after many failed boots:"
+    echo "  ./scripts/stop.sh"
+    echo "  docker volume rm ${PROJECT}_clearread_pg ${PROJECT}_clearread_minio ${PROJECT}_clearread_keycloak"
+    echo "  ./scripts/start-deps.sh"
+  fi
   echo "Docs: docs/ops/compose-deps-fix.md"
   exit 1
 fi

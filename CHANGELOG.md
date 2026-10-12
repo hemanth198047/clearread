@@ -5,6 +5,20 @@ All notable changes to ClearRead are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.7] — 2026-10-12
+
+### Fixed
+
+- **P0 local-run:** Detect containers stuck in Docker **`Created`** (never started / empty logs) — usually a wedged Docker Desktop / WSL engine, not ports or Keycloak.
+- `start-deps` no longer hangs unbounded on `compose up`: Windows PowerShell timeout + Unix `timeout`; fail if Status stays `Created` past `CLEARREAD_CREATED_STUCK_SECONDS` (default 45s) with `docker inspect` State + recovery steps.
+- Loud doctor diagnosis when Status=`Created` with empty logs; documents that if `docker start <id>` itself hangs, only Docker Desktop quit + `wsl --shutdown` fixes it.
+
+### Added
+
+- Root convenience wrappers: `stop.bat`, `start.bat`, `doctor.bat` → `scripts\*.bat` (so `.\stop.bat` from repo root works).
+- Env knobs: `CLEARREAD_COMPOSE_UP_TIMEOUT` (default 90), `CLEARREAD_CREATED_STUCK_SECONDS` (default 45).
+- Docs section: [Containers stuck in Created](docs/ops/compose-deps-fix.md#containers-stuck-in-created).
+
 ## [1.0.6] — 2026-10-12
 
 ### Fixed
