@@ -4,7 +4,7 @@ Green-path operators for local Compose. Prefer **Git Bash / WSL** on Windows whe
 
 | Script | Unix | Windows | What it does | Host fallback | Object store |
 | --- | --- | --- | --- | --- | --- |
-| `start.sh` / `start.bat` | ✅ | ✅ | Build + up Compose; wait for API health | **sh only** → host `bootRun` + Vite | n/a |
+| `start.sh` / `start.bat` | ✅ | ✅ | Build + up Compose; **fail fast** on busy ports; wait for API health (timeout) | **sh only** → host `bootRun` + Vite | n/a |
 | `start-deps.sh` | ✅ | use Git Bash | Deps only (db, LocalStack, Keycloak) | n/a | n/a |
 | `stop.sh` / `stop.bat` | ✅ | ✅ | Tear down Compose project `clearread` (+ tracked host PIDs) | stops host PIDs if tracked | n/a |
 | `check.sh` / `check.bat` | ✅ | ✅ | Health, capabilities, branding, web, OIDC | n/a | n/a |

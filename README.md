@@ -1,6 +1,6 @@
-# ClearRead ![version](https://img.shields.io/badge/version-v1.0.0-1a5f4a)
+# ClearRead ![version](https://img.shields.io/badge/version-v1.0.1-1a5f4a)
 
-**ClearRead v1.0.0** (temporary product name; branding is configurable).  
+**ClearRead v1.0.1** (temporary product name; branding is configurable).  
 Turns Markdown and plain text into structured, accessible reading experiences — **preserves originals**, **no AI required** for the core path, and **honest format support** via a capability registry.
 
 ## Prerequisites
@@ -33,12 +33,16 @@ Then open **http://localhost:5173**
 
 | Service | URL | Notes |
 | --- | --- | --- |
-| Web | http://localhost:5173 | SPA |
-| API | http://localhost:8080 | REST `/v1`, health `/v1/health`, OpenAPI `/v3/api-docs` |
-| Keycloak | http://localhost:8081 | Admin `admin` / `admin` |
-| S3 (LocalStack) | http://localhost:9000 | Access key `test` / `test` (S3 API; substitutes for MinIO when Hub pulls are blocked) |
+| Web | http://localhost:5173 | SPA (`CLEARREAD_WEB_PORT`) |
+| API | http://localhost:8080 | REST `/v1`, health `/v1/health`, OpenAPI `/v3/api-docs` (`CLEARREAD_API_PORT`) |
+| Keycloak | http://localhost:8081 | Admin `admin` / `admin` (`CLEARREAD_KEYCLOAK_PORT`) |
+| S3 (LocalStack) | http://localhost:9000 | Access key `test` / `test` (`CLEARREAD_S3_PORT`) |
 
-`scripts/start.sh` starts the Compose stack and, if the API container cannot become healthy, automatically falls back to a host-run API + Vite against the published dependency ports. `scripts/stop.sh` still only stops the ClearRead Compose project and ClearRead-tracked host PIDs.
+### Port conflicts
+
+If Compose reports `port is already allocated` (often **8080**), start scripts **fail fast** with the busy port and how to free or remap it. Copy [`.env.example`](.env.example) to `.env` and set e.g. `CLEARREAD_API_PORT=18080`. Scripts derive CORS + `VITE_API_BASE_URL` from those ports so the SPA still reaches the API. See [troubleshooting](docs/guides/troubleshooting.md).
+
+`scripts/start.sh` starts the Compose stack and, if the API container cannot become healthy, automatically falls back to a host-run API + Vite against the published dependency ports. Health waits **time out** with a clear error (no infinite hang). `scripts/stop.sh` still only stops the ClearRead Compose project and ClearRead-tracked host PIDs.
 
 Windows: `scripts\start.bat` / `stop.bat` / `check.bat` / `backup.bat` / `restore.bat`. The `.bat` start path does **not** include host fallback — if Compose API never becomes healthy (Docker bridge issues), use Git Bash or WSL with `bash scripts/start.sh`. Full matrix: [docs/ops/scripts.md](docs/ops/scripts.md).
 
@@ -125,7 +129,7 @@ Windows Postgres: `scripts\backup.bat`. Object sync: Git Bash `bash scripts/back
 
 ## Release status
 
-**v1.0.0 FINAL** — Phases 1–6 + acceptance + post-acceptance hardening. See [CHANGELOG.md](CHANGELOG.md).
+**v1.0.1** — patch on **v1.0.0 FINAL** (port-conflict fail-fast + configurable host ports). Phases 1–6 + acceptance + post-acceptance hardening. See [CHANGELOG.md](CHANGELOG.md).
 
 | Phase | Docs |
 | --- | --- |

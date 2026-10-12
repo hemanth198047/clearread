@@ -2,6 +2,11 @@ name: clearread
 
 # Phase 6: version tags pinned below. For production, resolve and append @sha256:… digests
 # (see docs/phase-6/operator-runbook.md).
+#
+# Host ports are overridable via env / repo-root `.env` (see `.env.example`):
+#   CLEARREAD_API_PORT CLEARREAD_WEB_PORT CLEARREAD_KEYCLOAK_PORT
+#   CLEARREAD_DB_PORT CLEARREAD_S3_PORT
+# Start scripts export derived VITE_* / CORS / OIDC URLs from those ports.
 
 services:
   db:
@@ -11,7 +16,7 @@ services:
       POSTGRES_USER: clearread
       POSTGRES_PASSWORD: clearread
     ports:
-      - "5432:5432"
+      - "${CLEARREAD_DB_PORT:-5432}:5432"
     volumes:
       - clearread_pg:/var/lib/postgresql/data
     healthcheck:
@@ -28,7 +33,7 @@ services:
       SERVICES: s3
       DEFAULT_REGION: us-east-1
     ports:
-      - "9000:4566"
+      - "${CLEARREAD_S3_PORT:-9000}:4566"
     volumes:
       - clearread_minio:/var/lib/localstack
     healthcheck:
@@ -46,14 +51,14 @@ services:
       KC_BOOTSTRAP_ADMIN_PASSWORD: admin
       KC_HTTP_PORT: 8081
       KC_HOSTNAME: localhost
-      KC_HOSTNAME_PORT: 8081
+      KC_HOSTNAME_PORT: ${CLEARREAD_KEYCLOAK_PORT:-8081}
       KC_HOSTNAME_STRICT: "false"
       KC_HOSTNAME_STRICT_HTTPS: "false"
       KC_HEALTH_ENABLED: "true"
     volumes:
       - ./keycloak/realm-clearread.json:/opt/keycloak/data/import/realm-clearread.json:ro
     ports:
-      - "8081:8081"
+      - "${CLEARREAD_KEYCLOAK_PORT:-8081}:8081"
     healthcheck:
       test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8081"]
       interval: 10s
@@ -74,15 +79,15 @@ services:
       CLEARREAD_S3_SECRET_KEY: test
       CLEARREAD_S3_BUCKET: clearread
       CLEARREAD_S3_REGION: us-east-1
-      CLEARREAD_OIDC_ISSUER: http://localhost:8081/realms/clearread
+      CLEARREAD_OIDC_ISSUER: ${CLEARREAD_OIDC_ISSUER:-http://localhost:8081/realms/clearread}
       CLEARREAD_OIDC_JWK_SET_URI: http://keycloak:8081/realms/clearread/protocol/openid-connect/certs
-      CLEARREAD_CORS_ORIGINS: http://localhost:5173,http://localhost:3000
+      CLEARREAD_CORS_ORIGINS: ${CLEARREAD_CORS_ORIGINS:-http://localhost:5173,http://localhost:3000}
       CLEARREAD_PRODUCT_NAME: ClearRead
       JAVA_TOOL_OPTIONS: "-Djava.net.useSystemProxies=false"
       NO_PROXY: "db,minio,keycloak,localhost,127.0.0.1"
       no_proxy: "db,minio,keycloak,localhost,127.0.0.1"
     ports:
-      - "8080:8080"
+      - "${CLEARREAD_API_PORT:-8080}:8080"
     depends_on:
       db:
         condition: service_healthy
@@ -103,11 +108,13 @@ services:
       context: ../frontend
       dockerfile: Dockerfile
       args:
-        VITE_API_BASE_URL: http://localhost:8080
-        VITE_OIDC_AUTHORITY: http://localhost:8081/realms/clearread
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8080}
+        VITE_OIDC_AUTHORITY: ${VITE_OIDC_AUTHORITY:-http://localhost:8081/realms/clearread}
         VITE_OIDC_CLIENT_ID: clearread-spa
+        CLEARREAD_API_ORIGIN: ${CLEARREAD_API_ORIGIN:-http://localhost:8080}
+        CLEARREAD_OIDC_ORIGIN: ${CLEARREAD_OIDC_ORIGIN:-http://localhost:8081}
     ports:
-      - "5173:80"
+      - "${CLEARREAD_WEB_PORT:-5173}:80"
     depends_on:
       api:
         condition: service_healthy
