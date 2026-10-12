@@ -5,8 +5,15 @@ name: clearread
 #
 # Host ports are overridable via env / repo-root `.env` (see `.env.example`):
 #   CLEARREAD_API_PORT CLEARREAD_WEB_PORT CLEARREAD_KEYCLOAK_PORT
-#   CLEARREAD_DB_PORT CLEARREAD_S3_PORT
+#   CLEARREAD_KEYCLOAK_MGMT_PORT CLEARREAD_DB_PORT CLEARREAD_S3_PORT
 # Start scripts export derived VITE_* / CORS / OIDC URLs from those ports.
+#
+# Deps profile notes (v1.0.6):
+# - Postgres host default 5433 (avoids Windows local Postgres on 5432).
+# - Service name `minio` is LocalStack S3 (kept for container DNS / env compatibility).
+# - Keycloak health uses bash /dev/tcp on management :9000 (UBI has no curl).
+# - API waits for db+object-store healthy; Keycloak only needs to have started
+#   (scripts wait for OIDC discovery separately so slow IdP does not block deps).
 
 services:
   db:
@@ -16,39 +23,59 @@ services:
       POSTGRES_USER: clearread
       POSTGRES_PASSWORD: clearread
     ports:
-      - "${CLEARREAD_DB_PORT:-5432}:5432"
+      # Default 5433: Windows machines often already run Postgres on 5432.
+      - "${CLEARREAD_DB_PORT:-5433}:5432"
     volumes:
       - clearread_pg:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U clearread -d clearread"]
       interval: 5s
       timeout: 5s
-      retries: 10
+      retries: 12
+      start_period: 10s
+    restart: unless-stopped
 
-  # S3-compatible object store. Official minio/minio Hub pulls are unavailable in some
-  # environments; LocalStack provides the S3 API ClearRead uses locally.
+  # S3-compatible object store via LocalStack (service name `minio` kept so
+  # CLEARREAD_S3_ENDPOINT=http://minio:4566 and existing scripts keep working).
+  # Official minio/minio Hub pulls are unavailable in some environments.
   minio:
     image: localstack/localstack:4.3
     environment:
       SERVICES: s3
       DEFAULT_REGION: us-east-1
+      # Avoid optional runtime downloads that can hang on flaky networks.
+      SKIP_INFRA_DOWNLOADS: "1"
+      EAGER_SERVICE_LOADING: "1"
     ports:
       - "${CLEARREAD_S3_PORT:-9000}:4566"
     volumes:
       - clearread_minio:/var/lib/localstack
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
+      # Prefer Python (always present in LocalStack); curl as fallback.
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:4566/_localstack/health')\" || curl -sf http://127.0.0.1:4566/_localstack/health || exit 1",
+        ]
       interval: 5s
-      timeout: 5s
-      retries: 12
-      start_period: 10s
+      timeout: 8s
+      retries: 18
+      start_period: 20s
+    restart: unless-stopped
 
   # Local IdP: start-dev + H2. Persistent data volume so --import-realm only applies
   # on first boot (existing realm is skipped). Wipe the volume when realm JSON changes.
   # First boot on Docker Desktop is often 1–3 minutes; warm starts usually <30s.
   keycloak:
     image: quay.io/keycloak/keycloak:26.8.0
-    command: ["start-dev", "--import-realm", "--http-port=8081"]
+    command:
+      [
+        "start-dev",
+        "--import-realm",
+        "--http-port=8081",
+        "--health-enabled=true",
+        "--http-management-port=9000",
+      ]
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: admin
@@ -59,26 +86,31 @@ services:
       KC_HOSTNAME_STRICT_HTTPS: "false"
       KC_HEALTH_ENABLED: "true"
       KC_HTTP_MANAGEMENT_PORT: "9000"
-      # Cap heap so Docker Desktop (often 4–8GB) does not thrash under Keycloak + API + DB.
-      JAVA_OPTS_KC_HEAP: "-Xms64m -Xmx512m"
+      # Soft heap cap; do not set a hard mem_limit — 768m OOM-kills first-boot import on Docker Desktop.
+      JAVA_OPTS_KC_HEAP: "-Xms64m -Xmx768m"
     volumes:
       # Named volume first; bind-mount import JSON on top so first boot can import.
+      # Path is relative to this compose file (infra/keycloak/…).
       - clearread_keycloak:/opt/keycloak/data
       - ./keycloak/realm-clearread.json:/opt/keycloak/data/import/realm-clearread.json:ro
     ports:
       - "${CLEARREAD_KEYCLOAK_PORT:-8081}:8081"
+      # Management /health (not the SPA port). Default 9002 avoids clashing with S3 host :9000.
+      - "${CLEARREAD_KEYCLOAK_MGMT_PORT:-9002}:9000"
     healthcheck:
-      # Ready probe on management interface (not just TCP open on 8081).
+      # Keycloak UBI image has no curl/wget. Use bash /dev/tcp explicitly (not plain sh).
       test:
         [
-          "CMD-SHELL",
-          "exec 3<>/dev/tcp/127.0.0.1/9000; echo -e 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3; cat <&3 | grep -q '200'",
+          "CMD",
+          "/bin/bash",
+          "-c",
+          "exec 3<>/dev/tcp/127.0.0.1/9000; printf 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3; cat <&3 | grep -q '200 OK'",
         ]
       interval: 10s
       timeout: 5s
-      retries: 30
-      start_period: 120s
-    mem_limit: 768m
+      retries: 36
+      start_period: 180s
+    restart: unless-stopped
 
   api:
     build:
@@ -108,8 +140,10 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
+      # Do not block API container create on Keycloak health — IdP can take minutes.
+      # Scripts wait for OIDC discovery before declaring the stack ready.
       keycloak:
-        condition: service_healthy
+        condition: service_started
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://127.0.0.1:8080/v1/health"]
       interval: 5s

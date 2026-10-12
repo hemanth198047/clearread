@@ -8,9 +8,9 @@ Companion guides: [user](../guides/user.md) · [admin](../guides/admin.md) · [d
 | --- | --- | --- |
 | API | `:8080` | Health `/actuator/health`, Prometheus `/actuator/prometheus` (auth) |
 | Web | `:5173` / `:80` in compose | SPA; OIDC PKCE |
-| Postgres | `:5432` | Flyway on boot |
-| Object store | `:9000` → LocalStack S3 | Prefix `tenants/{tenantId}/…` |
-| Keycloak | `:8081` | Realm `clearread`, client `clearread-spa`; accounts admin/admin, user/user, demo/demo; local volume `clearread_keycloak` (see docs/ops/keycloak-startup.md) |
+| Postgres | host `:5433` → container `5432` | Flyway on boot (`CLEARREAD_DB_PORT`; avoids Windows local Postgres on 5432) |
+| Object store | `:9000` → LocalStack S3 | Compose service name `minio`; prefix `tenants/{tenantId}/…` |
+| Keycloak | `:8081` (mgmt `:9002`) | Realm `clearread`, client `clearread-spa`; accounts admin/admin, user/user, demo/demo; local volume `clearread_keycloak` (see docs/ops/keycloak-startup.md · compose-deps-fix.md) |
 
 ## Capability honesty
 

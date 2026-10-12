@@ -16,7 +16,9 @@ if exist "%ROOT%\.env" (
 if not defined CLEARREAD_API_PORT set CLEARREAD_API_PORT=8080
 if not defined CLEARREAD_WEB_PORT set CLEARREAD_WEB_PORT=5173
 if not defined CLEARREAD_KEYCLOAK_PORT set CLEARREAD_KEYCLOAK_PORT=8081
-if not defined CLEARREAD_DB_PORT set CLEARREAD_DB_PORT=5432
+if not defined CLEARREAD_KEYCLOAK_MGMT_PORT set CLEARREAD_KEYCLOAK_MGMT_PORT=9002
+REM Default 5433 avoids Windows local Postgres already bound on 5432.
+if not defined CLEARREAD_DB_PORT set CLEARREAD_DB_PORT=5433
 if not defined CLEARREAD_S3_PORT set CLEARREAD_S3_PORT=9000
 if not defined VITE_API_BASE_URL set VITE_API_BASE_URL=http://localhost:%CLEARREAD_API_PORT%
 if not defined VITE_OIDC_AUTHORITY set VITE_OIDC_AUTHORITY=http://localhost:%CLEARREAD_KEYCLOAK_PORT%/realms/clearread
@@ -26,15 +28,31 @@ if not defined CLEARREAD_API_ORIGIN set CLEARREAD_API_ORIGIN=http://localhost:%C
 if not defined CLEARREAD_OIDC_ORIGIN set CLEARREAD_OIDC_ORIGIN=http://localhost:%CLEARREAD_KEYCLOAK_PORT%
 if not defined CLEARREAD_HEALTH_ATTEMPTS set CLEARREAD_HEALTH_ATTEMPTS=45
 if not defined CLEARREAD_KEYCLOAK_WAIT_SECONDS set CLEARREAD_KEYCLOAK_WAIT_SECONDS=240
+if not defined CLEARREAD_DEP_WAIT_SECONDS set CLEARREAD_DEP_WAIT_SECONDS=90
 
 set COMPOSE_ENVFILE=
 if exist "%ROOT%\.env" set COMPOSE_ENVFILE=--env-file "%ROOT%\.env"
+
+where docker >nul 2>&1
+if errorlevel 1 (
+  echo ERROR: Docker CLI not found. Install Docker Desktop and retry.
+  echo   Diagnose: scripts\doctor.bat
+  exit /b 1
+)
+docker info >nul 2>&1
+if errorlevel 1 (
+  echo ERROR: Docker is not running. Start Docker Desktop, then retry.
+  echo   Diagnose: scripts\doctor.bat
+  exit /b 1
+)
 
 call :require_port_free %CLEARREAD_API_PORT% API CLEARREAD_API_PORT
 if errorlevel 1 exit /b 1
 call :require_port_free %CLEARREAD_WEB_PORT% Web CLEARREAD_WEB_PORT
 if errorlevel 1 exit /b 1
 call :require_port_free %CLEARREAD_KEYCLOAK_PORT% Keycloak CLEARREAD_KEYCLOAK_PORT
+if errorlevel 1 exit /b 1
+call :require_port_free %CLEARREAD_KEYCLOAK_MGMT_PORT% Keycloak-mgmt CLEARREAD_KEYCLOAK_MGMT_PORT
 if errorlevel 1 exit /b 1
 call :require_port_free %CLEARREAD_DB_PORT% Postgres CLEARREAD_DB_PORT
 if errorlevel 1 exit /b 1
@@ -65,13 +83,18 @@ if errorlevel 1 (
   exit /b 1
 )
 
-echo Starting ClearRead Compose stack...
-docker compose -p %PROJECT% -f "%COMPOSE_FILE%" %COMPOSE_ENVFILE% up -d db minio keycloak
-if errorlevel 1 (
-  echo ERROR: Compose failed starting dependencies. Check ports and Docker Desktop.
-  echo Override ports via .env — see .env.example
-  exit /b 1
-)
+echo Starting ClearRead Compose deps ^(db -^> LocalStack/minio -^> Keycloak^)...
+call :start_dep db
+if errorlevel 1 exit /b 1
+call :wait_dep_healthy db %CLEARREAD_DEP_WAIT_SECONDS%
+if errorlevel 1 exit /b 1
+call :start_dep minio
+if errorlevel 1 exit /b 1
+call :wait_dep_healthy minio %CLEARREAD_DEP_WAIT_SECONDS%
+if errorlevel 1 exit /b 1
+call :start_dep keycloak
+if errorlevel 1 exit /b 1
+docker compose -p %PROJECT% -f "%COMPOSE_FILE%" %COMPOSE_ENVFILE% ps -a db minio keycloak
 
 echo Waiting for Keycloak ^(http://localhost:%CLEARREAD_KEYCLOAK_PORT%/realms/clearread^)...
 echo   First boot can take 1-3 minutes ^(Docker Desktop^); warm starts are usually under 30s.
@@ -86,14 +109,14 @@ if not errorlevel 1 (
 docker compose -p %PROJECT% -f "%COMPOSE_FILE%" %COMPOSE_ENVFILE% ps -a keycloak 2>nul | findstr /I "Exit Dead" >nul
 if not errorlevel 1 (
   echo ERROR: Keycloak container is not running — stopping wait early.
-  docker compose -p %PROJECT% -f "%COMPOSE_FILE%" %COMPOSE_ENVFILE% ps -a keycloak
-  docker compose -p %PROJECT% -f "%COMPOSE_FILE%" %COMPOSE_ENVFILE% logs --tail=60 keycloak
-  goto kc_failed
+  call :fail_dep keycloak
+  exit /b 1
 )
 set /a rem=%kc_elapsed% %% 15
 if %rem%==0 (
   set /a kc_left=%CLEARREAD_KEYCLOAK_WAIT_SECONDS%-%kc_elapsed%
   echo   ... Keycloak still starting ^(%kc_elapsed%s elapsed, !kc_left!s left^)
+  docker compose -p %PROJECT% -f "%COMPOSE_FILE%" %COMPOSE_ENVFILE% ps keycloak
 )
 set /a kc_elapsed+=5
 if %kc_elapsed% GEQ %CLEARREAD_KEYCLOAK_WAIT_SECONDS% goto kc_failed
@@ -110,7 +133,7 @@ echo     docker compose -p %PROJECT% -f "%COMPOSE_FILE%" stop keycloak
 echo     docker volume rm %PROJECT%_clearread_keycloak
 echo   Give Docker Desktop more RAM ^(4GB+ recommended^).
 echo   See docs\ops\keycloak-startup.md
-docker compose -p %PROJECT% -f "%COMPOSE_FILE%" %COMPOSE_ENVFILE% logs --tail=80 keycloak
+call :fail_dep keycloak
 exit /b 1
 
 :kc_ready
@@ -127,6 +150,7 @@ if errorlevel 1 (
   ) else (
     echo ERROR: docker compose up failed for api/web. See log above.
   )
+  echo   Diagnose: scripts\doctor.bat
   exit /b 1
 )
 echo %PROJECT%> "%ROOT%\.clearread-run\compose.project"
@@ -186,9 +210,66 @@ echo     user  / user   — standard member (author)
 echo     demo  / demo   — legacy admin (compat)
 echo   Sign up: open Web -^> Create account (Keycloak self-registration)
 echo Smoke: scripts\check.bat
+echo Diagnose: scripts\doctor.bat
 echo Stop with: scripts\stop.bat
 endlocal
 exit /b 0
+
+:start_dep
+set SVC=%~1
+echo.
+echo === Starting %SVC% ===
+docker compose -p %PROJECT% -f "%COMPOSE_FILE%" %COMPOSE_ENVFILE% up -d %SVC%
+if errorlevel 1 (
+  echo ERROR: docker compose up failed for %SVC%.
+  call :fail_dep %SVC%
+  exit /b 1
+)
+docker compose -p %PROJECT% -f "%COMPOSE_FILE%" %COMPOSE_ENVFILE% ps -a %SVC%
+exit /b 0
+
+:wait_dep_healthy
+set SVC=%~1
+set TIMEOUT=%~2
+if "%TIMEOUT%"=="" set TIMEOUT=90
+set /a elapsed=0
+echo Waiting for %SVC% healthy ^(timeout %TIMEOUT%s^)...
+:wdh_loop
+docker compose -p %PROJECT% -f "%COMPOSE_FILE%" %COMPOSE_ENVFILE% ps %SVC% 2>nul | findstr /I "healthy" >nul
+if not errorlevel 1 (
+  echo   %SVC% is healthy ^(%elapsed%s^).
+  docker compose -p %PROJECT% -f "%COMPOSE_FILE%" %COMPOSE_ENVFILE% ps %SVC%
+  exit /b 0
+)
+docker compose -p %PROJECT% -f "%COMPOSE_FILE%" %COMPOSE_ENVFILE% ps -a %SVC% 2>nul | findstr /I "Exit Dead" >nul
+if not errorlevel 1 (
+  echo   %SVC% container exited.
+  call :fail_dep %SVC%
+  exit /b 1
+)
+set /a rem=%elapsed% %% 15
+if %rem%==0 (
+  echo   ... %SVC% still starting ^(%elapsed%s / %TIMEOUT%s^)
+  docker compose -p %PROJECT% -f "%COMPOSE_FILE%" %COMPOSE_ENVFILE% ps -a %SVC%
+)
+set /a elapsed+=5
+if %elapsed% GEQ %TIMEOUT% (
+  call :fail_dep %SVC%
+  exit /b 1
+)
+timeout /t 5 /nobreak >nul
+goto wdh_loop
+
+:fail_dep
+set SVC=%~1
+echo ERROR: Dependency '%SVC%' failed.
+echo --- docker compose ps ---
+docker compose -p %PROJECT% -f "%COMPOSE_FILE%" %COMPOSE_ENVFILE% ps -a
+echo --- docker logs --tail 80 %SVC% ---
+docker compose -p %PROJECT% -f "%COMPOSE_FILE%" %COMPOSE_ENVFILE% logs --tail=80 %SVC%
+echo   Diagnose: scripts\doctor.bat
+echo   Docs: docs\ops\compose-deps-fix.md
+exit /b 1
 
 :require_port_free
 set PORT=%~1
@@ -197,6 +278,7 @@ set ENVVAR=%~3
 set SUGGEST=18080
 if /I "%ENVVAR%"=="CLEARREAD_WEB_PORT" set SUGGEST=5174
 if /I "%ENVVAR%"=="CLEARREAD_KEYCLOAK_PORT" set SUGGEST=18081
+if /I "%ENVVAR%"=="CLEARREAD_KEYCLOAK_MGMT_PORT" set SUGGEST=19002
 if /I "%ENVVAR%"=="CLEARREAD_DB_PORT" set SUGGEST=15432
 if /I "%ENVVAR%"=="CLEARREAD_S3_PORT" set SUGGEST=19000
 if /I "%ENVVAR%"=="CLEARREAD_API_PORT" set SUGGEST=18080
@@ -212,5 +294,6 @@ echo ERROR: Port %PORT% is in use. Stop the other process or set %ENVVAR%=%SUGGE
 echo   Find PID: netstat -ano ^| findstr :%PORT%
 echo   Or PowerShell: Get-NetTCPConnection -LocalPort %PORT% ^| Select OwningProcess
 echo   Free ClearRead leftovers: scripts\stop.bat
+echo   Diagnose: scripts\doctor.bat
 echo   Override example: echo %ENVVAR%=%SUGGEST%^>^>.env ^& scripts\start.bat
 exit /b 1

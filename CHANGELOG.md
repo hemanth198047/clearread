@@ -5,6 +5,28 @@ All notable changes to ClearRead are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.6] — 2026-10-12
+
+### Fixed
+
+- **P0 local-run:** Compose deps (`db`, LocalStack/`minio`, Keycloak) start reliably on Docker Desktop (Windows).
+- Keycloak healthcheck uses explicit `/bin/bash` + `/dev/tcp` on management `:9000` (UBI image has no curl; plain `sh` `/dev/tcp` never went healthy).
+- Removed Keycloak hard `mem_limit: 768m` that OOM-killed first-boot realm import.
+- Default host Postgres port is **5433** (`CLEARREAD_DB_PORT`) so Windows local Postgres on **5432** no longer blocks all deps from starting.
+- LocalStack healthcheck uses Python urllib (curl fallback); start scripts bring deps up **one service at a time** with `ps` + `logs --tail 80` on failure.
+- API `depends_on` Keycloak is `service_started` (not healthy) so slow IdP does not block container create; scripts still wait for OIDC discovery.
+
+### Added
+
+- `scripts/doctor.sh` + `scripts/doctor.bat` — Docker running?, Compose V2, port conflicts, `compose ps`, last logs for db/minio/keycloak, clear next action.
+- `scripts/start-deps.bat` (Windows deps-only path matching `start-deps.sh`).
+- Keycloak management port published as `CLEARREAD_KEYCLOAK_MGMT_PORT` (default **9002**).
+- Docs: [docs/ops/compose-deps-fix.md](docs/ops/compose-deps-fix.md).
+
+### Changed
+
+- Object storage remains Compose service name `minio` but is documented as **LocalStack S3** (image `localstack/localstack:4.3`).
+
 ## [1.0.5] — 2026-10-12
 
 ### Fixed
@@ -19,7 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Compose `api` waits for Keycloak **healthy** before starting.
+- Compose `api` waits for Keycloak **healthy** before starting (relaxed to `service_started` in **v1.0.6**).
 
 ## [1.0.4] — 2026-10-12
 

@@ -1,11 +1,12 @@
-# ClearRead scripts matrix (v1.0)
+# ClearRead scripts matrix (v1.0.6)
 
 Green-path operators for local Compose. Prefer **Git Bash / WSL** on Windows when the Docker bridge is broken (host API fallback lives only in `start.sh`).
 
 | Script | Unix | Windows | What it does | Host fallback | Object store |
 | --- | --- | --- | --- | --- | --- |
-| `start.sh` / `start.bat` | ✅ | ✅ | Build + up Compose; **fail fast** on busy ports; wait for Keycloak (240s) then API health | **sh only** → host `bootRun` + Vite | n/a |
-| `start-deps.sh` | ✅ | use Git Bash | Deps only (db, LocalStack, Keycloak); waits for Keycloak ready | n/a | n/a |
+| `start.sh` / `start.bat` | ✅ | ✅ | Build + up Compose; **per-service deps**; fail fast on busy ports; wait for Keycloak (240s) then API health | **sh only** → host `bootRun` + Vite | n/a |
+| `start-deps.sh` / `start-deps.bat` | ✅ | ✅ | Deps only: **db → LocalStack(`minio`) → Keycloak**; per-service status + logs on failure | n/a | n/a |
+| `doctor.sh` / `doctor.bat` | ✅ | ✅ | Docker running?, Compose V2, ports, `compose ps`, last logs, next action | n/a | n/a |
 | `stop.sh` / `stop.bat` | ✅ | ✅ | Tear down Compose project `clearread` (+ tracked host PIDs) | stops host PIDs if tracked | n/a |
 | `check.sh` / `check.bat` | ✅ | ✅ | Health, capabilities, branding, web, OIDC | n/a | n/a |
 | `backup.sh` / `backup.bat` | ✅ | ✅ (Compose pg_dump) | Postgres dump + MANIFEST | n/a | **`--with-objects`** on `.sh` (AWS CLI); `.bat` documents manual sync |
@@ -28,11 +29,22 @@ Green-path operators for local Compose. Prefer **Git Bash / WSL** on Windows whe
 ## End-to-end green path (Windows)
 
 ```bat
+scripts\doctor.bat
+scripts\start-deps.bat
 scripts\start.bat
 scripts\check.bat
 scripts\backup.bat
 REM Object store: use Git Bash  bash scripts/backup.sh --with-objects
 scripts\stop.bat
+```
+
+If deps never start:
+
+```bat
+scripts\doctor.bat
+scripts\stop.bat
+docker volume rm clearread_clearread_pg clearread_clearread_minio clearread_clearread_keycloak
+scripts\start-deps.bat
 ```
 
 If `start.bat` never reaches a healthy API (Docker bridge), switch to:
@@ -41,4 +53,4 @@ If `start.bat` never reaches a healthy API (Docker bridge), switch to:
 bash scripts/start.sh
 ```
 
-See [troubleshooting](../guides/troubleshooting.md) and [operator-runbook](../phase-6/operator-runbook.md).
+See [compose-deps-fix](./compose-deps-fix.md), [troubleshooting](../guides/troubleshooting.md) and [operator-runbook](../phase-6/operator-runbook.md).

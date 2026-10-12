@@ -1,8 +1,28 @@
-# Troubleshooting (ClearRead v1.0.5)
+# Troubleshooting (ClearRead v1.0.6)
+
+## Deps never start (db / LocalStack / Keycloak) — Windows P0
+
+If containers do not come up at all (or start scripts die before API):
+
+1. Run the doctor (Docker running? Compose V2? port conflicts? last logs?):
+
+```bat
+scripts\doctor.bat
+```
+
+2. Stop + optional volume wipe + deps-only start:
+
+```bat
+scripts\stop.bat
+docker volume rm clearread_clearread_pg clearread_clearread_minio clearread_clearread_keycloak
+scripts\start-deps.bat
+```
+
+**v1.0.6 defaults:** Postgres host port **5433** (not 5432 — local Windows Postgres often owns 5432 and used to block the entire start). Object store is **LocalStack** under Compose service name `minio`. Keycloak health uses bash `/dev/tcp` on management port **9002**. Full write-up: [ops/compose-deps-fix.md](../ops/compose-deps-fix.md).
 
 ## Keycloak takes forever / start hangs on IdP
 
-First Keycloak boot (empty volume + realm import) often takes **1–3 minutes** on Windows Docker Desktop. Warm starts are usually under 30s. **v1.0.5+** start scripts print progress and fail after **240s** with tips instead of hanging forever. See [ops/keycloak-startup.md](../ops/keycloak-startup.md).
+First Keycloak boot (empty volume + realm import) often takes **1–3 minutes** on Windows Docker Desktop. Warm starts are usually under 30s. Start scripts print progress and fail after **240s** with tips instead of hanging forever. See [ops/keycloak-startup.md](../ops/keycloak-startup.md).
 
 ```bat
 docker logs clearread-keycloak-1
@@ -12,7 +32,7 @@ docker compose -p clearread -f infra\compose.yaml up -d --force-recreate keycloa
 
 ## Port already allocated / start hangs on API health
 
-Compose publishes host ports (defaults: API **8080**, web **5173**, Keycloak **8081**, Postgres **5432**, S3 **9000**). If another process holds one of them, `docker compose up` fails with `port is already allocated` and older start scripts waited forever on health.
+Compose publishes host ports (defaults: API **8080**, web **5173**, Keycloak **8081**, Keycloak mgmt **9002**, Postgres **5433**, S3 **9000**). If another process holds one of them, `docker compose up` fails with `port is already allocated` and older start scripts waited forever on health.
 
 **v1.0.1+ behavior:** `scripts/start.sh` and `scripts/start.bat` **fail fast** before/at compose up, print which port is busy, and do **not** infinite-wait for API health. Health waits also abort early if the `api` container exits.
 
@@ -55,8 +75,9 @@ Start scripts derive `VITE_API_BASE_URL`, CORS origins, and OIDC issuer URLs fro
 | `CLEARREAD_API_PORT` | 8080 | API |
 | `CLEARREAD_WEB_PORT` | 5173 | Web SPA |
 | `CLEARREAD_KEYCLOAK_PORT` | 8081 | Keycloak |
-| `CLEARREAD_DB_PORT` | 5432 | Postgres |
-| `CLEARREAD_S3_PORT` | 9000 | LocalStack S3 |
+| `CLEARREAD_KEYCLOAK_MGMT_PORT` | 9002 | Keycloak management `/health` |
+| `CLEARREAD_DB_PORT` | **5433** | Postgres (host; container stays 5432) |
+| `CLEARREAD_S3_PORT` | 9000 | LocalStack S3 (Compose service `minio`) |
 
 ## Compose API never healthy (Docker bridge)
 
@@ -116,4 +137,4 @@ Suite needs a running stack (`./scripts/start.sh`). Without Docker/API, tests sk
 
 ## More
 
-[Operator runbook](../phase-6/operator-runbook.md) · [scripts matrix](../ops/scripts.md)
+[Compose deps fix](../ops/compose-deps-fix.md) · [Operator runbook](../phase-6/operator-runbook.md) · [scripts matrix](../ops/scripts.md)

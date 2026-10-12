@@ -19,12 +19,16 @@ fi
 CLEARREAD_API_PORT="${CLEARREAD_API_PORT:-8080}"
 CLEARREAD_WEB_PORT="${CLEARREAD_WEB_PORT:-5173}"
 CLEARREAD_KEYCLOAK_PORT="${CLEARREAD_KEYCLOAK_PORT:-8081}"
-CLEARREAD_DB_PORT="${CLEARREAD_DB_PORT:-5432}"
+CLEARREAD_KEYCLOAK_MGMT_PORT="${CLEARREAD_KEYCLOAK_MGMT_PORT:-9002}"
+# Default 5433 avoids Windows local Postgres already bound on 5432.
+CLEARREAD_DB_PORT="${CLEARREAD_DB_PORT:-5433}"
 CLEARREAD_S3_PORT="${CLEARREAD_S3_PORT:-9000}"
 CLEARREAD_KEYCLOAK_WAIT_SECONDS="${CLEARREAD_KEYCLOAK_WAIT_SECONDS:-240}"
+CLEARREAD_DEP_WAIT_SECONDS="${CLEARREAD_DEP_WAIT_SECONDS:-90}"
 
-export CLEARREAD_API_PORT CLEARREAD_WEB_PORT CLEARREAD_KEYCLOAK_PORT CLEARREAD_DB_PORT CLEARREAD_S3_PORT
-export CLEARREAD_KEYCLOAK_WAIT_SECONDS
+export CLEARREAD_API_PORT CLEARREAD_WEB_PORT CLEARREAD_KEYCLOAK_PORT CLEARREAD_KEYCLOAK_MGMT_PORT
+export CLEARREAD_DB_PORT CLEARREAD_S3_PORT
+export CLEARREAD_KEYCLOAK_WAIT_SECONDS CLEARREAD_DEP_WAIT_SECONDS
 export VITE_API_BASE_URL="${VITE_API_BASE_URL:-http://localhost:${CLEARREAD_API_PORT}}"
 export VITE_OIDC_AUTHORITY="${VITE_OIDC_AUTHORITY:-http://localhost:${CLEARREAD_KEYCLOAK_PORT}/realms/clearread}"
 export CLEARREAD_OIDC_ISSUER="${CLEARREAD_OIDC_ISSUER:-http://localhost:${CLEARREAD_KEYCLOAK_PORT}/realms/clearread}"
@@ -82,6 +86,7 @@ require_port_free_or_ours() {
     CLEARREAD_KEYCLOAK_PORT) suggest=18081 ;;
     CLEARREAD_DB_PORT) suggest=15432 ;;
     CLEARREAD_S3_PORT) suggest=19000 ;;
+    CLEARREAD_KEYCLOAK_MGMT_PORT) suggest=19002 ;;
   esac
   echo "ERROR: Port $port is in use. Stop the other process or set ${env_var}=${suggest}" >&2
   if [[ -n "$hint" ]]; then
@@ -89,8 +94,19 @@ require_port_free_or_ours() {
   fi
   echo "  Find listener (Linux/macOS): ss -ltnp | grep :$port   OR   lsof -nP -iTCP:$port -sTCP:LISTEN" >&2
   echo "  Free ClearRead leftovers: ./scripts/stop.sh" >&2
+  echo "  Diagnose: ./scripts/doctor.sh" >&2
   echo "  Override example: echo '${env_var}=${suggest}' >> .env && ./scripts/start.sh" >&2
   exit 1
+}
+
+dump_service_failure() {
+  local svc="$1"
+  echo "--- docker compose ps ---" >&2
+  "${COMPOSE[@]}" ps -a >&2 || true
+  echo "--- docker logs --tail 80 $svc ---" >&2
+  "${COMPOSE[@]}" logs --tail=80 "$svc" >&2 || true
+  echo "  Diagnose: ./scripts/doctor.sh" >&2
+  echo "  Docs: docs/ops/compose-deps-fix.md" >&2
 }
 
 compose_up_checked() {
@@ -108,11 +124,43 @@ compose_up_checked() {
       echo "  Inspect: docker ps --format 'table {{.Names}}\t{{.Ports}}'" >&2
       echo "  Override host ports via .env (see .env.example): CLEARREAD_API_PORT, CLEARREAD_WEB_PORT, …" >&2
       echo "  Or free ClearRead leftovers: ./scripts/stop.sh" >&2
+      echo "  Diagnose: ./scripts/doctor.sh" >&2
       exit 1
     fi
     echo "ERROR: docker compose up failed for: $*" >&2
+    for svc in "$@"; do
+      dump_service_failure "$svc"
+    done
     exit "$rc"
   fi
+}
+
+wait_svc_healthy() {
+  local svc="$1"
+  local timeout="${2:-$CLEARREAD_DEP_WAIT_SECONDS}"
+  local elapsed=0
+  echo "Waiting for $svc healthy (timeout ${timeout}s)..."
+  while [[ "$elapsed" -lt "$timeout" ]]; do
+    local status
+    status="$("${COMPOSE[@]}" ps -a --format '{{.Service}} {{.State}} {{.Status}}' 2>/dev/null | awk -v s="$svc" '$1==s {print; exit}')"
+    if echo "$status" | grep -Eiq 'healthy'; then
+      echo "  $svc is healthy (${elapsed}s).  $status"
+      return 0
+    fi
+    if echo "$status" | grep -Eiq 'exit|dead'; then
+      echo "ERROR: $svc container exited." >&2
+      dump_service_failure "$svc"
+      exit 1
+    fi
+    if (( elapsed % 15 == 0 )); then
+      echo "  … $svc: ${status:-unknown} (${elapsed}s / ${timeout}s)"
+    fi
+    sleep 5
+    elapsed=$((elapsed + 5))
+  done
+  echo "ERROR: $svc did not become healthy within ${timeout}s." >&2
+  dump_service_failure "$svc"
+  exit 1
 }
 
 api_container_failed() {
@@ -152,8 +200,7 @@ wait_for_keycloak() {
     fi
     if keycloak_container_failed; then
       echo "ERROR: Keycloak container is not running — stopping wait early." >&2
-      "${COMPOSE[@]}" ps -a keycloak >&2 || true
-      "${COMPOSE[@]}" logs --tail=60 keycloak >&2 || true
+      dump_service_failure keycloak
       echo "  Tips: docker logs clearread-keycloak-1" >&2
       echo "  Recreate: docker compose -p $PROJECT -f \"$COMPOSE_FILE\" up -d --force-recreate keycloak" >&2
       echo "  Give Docker Desktop more RAM (4GB+ recommended)." >&2
@@ -163,14 +210,14 @@ wait_for_keycloak() {
     if (( elapsed % 15 == 0 )); then
       local left=$((timeout - elapsed))
       echo "  … Keycloak still starting (${elapsed}s elapsed, ${left}s left)"
+      "${COMPOSE[@]}" ps keycloak || true
     fi
     sleep 5
     elapsed=$((elapsed + 5))
   done
 
   echo "ERROR: Keycloak did not become ready within ${timeout}s." >&2
-  "${COMPOSE[@]}" ps -a keycloak >&2 || true
-  "${COMPOSE[@]}" logs --tail=80 keycloak >&2 || true
+  dump_service_failure keycloak
   echo "  Inspect: docker logs clearread-keycloak-1" >&2
   echo "  Recreate: docker compose -p $PROJECT -f \"$COMPOSE_FILE\" up -d --force-recreate keycloak" >&2
   echo "  Wipe realm volume after realm JSON changes:" >&2
@@ -189,10 +236,17 @@ if [[ -f "$ROOT/backend/gradlew" ]]; then
   fi
 fi
 
+if ! command -v docker >/dev/null 2>&1 || ! docker info >/dev/null 2>&1; then
+  echo "ERROR: Docker is not running. Start Docker Desktop, then retry." >&2
+  echo "  Diagnose: ./scripts/doctor.sh" >&2
+  exit 1
+fi
+
 echo "Checking published ports..."
 require_port_free_or_ours "$CLEARREAD_API_PORT" "API" "CLEARREAD_API_PORT"
 require_port_free_or_ours "$CLEARREAD_WEB_PORT" "Web" "CLEARREAD_WEB_PORT"
 require_port_free_or_ours "$CLEARREAD_KEYCLOAK_PORT" "Keycloak" "CLEARREAD_KEYCLOAK_PORT"
+require_port_free_or_ours "$CLEARREAD_KEYCLOAK_MGMT_PORT" "Keycloak mgmt" "CLEARREAD_KEYCLOAK_MGMT_PORT"
 require_port_free_or_ours "$CLEARREAD_DB_PORT" "Postgres" "CLEARREAD_DB_PORT"
 require_port_free_or_ours "$CLEARREAD_S3_PORT" "S3/LocalStack" "CLEARREAD_S3_PORT"
 
@@ -212,10 +266,16 @@ if ! "${COMPOSE[@]}" build api web; then
   exit 1
 fi
 
-echo "Starting ClearRead Compose stack..."
+echo "Starting ClearRead Compose deps (db → LocalStack/minio → Keycloak)..."
 # Prefer full stack; if API never becomes healthy (e.g. broken container bridge networking),
 # fall through to host API + Vite against published dependency ports.
-compose_up_checked "deps" db minio keycloak
+# Start deps independently so db + object storage come up even when Keycloak is slow.
+compose_up_checked "db" db
+wait_svc_healthy db
+compose_up_checked "minio/LocalStack" minio
+wait_svc_healthy minio
+compose_up_checked "keycloak" keycloak
+"${COMPOSE[@]}" ps -a db minio keycloak || true
 wait_for_keycloak
 compose_up_checked "api/web" api web
 
