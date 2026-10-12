@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiFetch } from "../api/client";
 import { useAuth } from "../auth/AuthProvider";
@@ -10,6 +10,8 @@ type DocMeta = {
   status: string;
   formatId: string;
   jobId?: string;
+  duplicateOfExisting?: boolean;
+  message?: string;
 };
 
 type CapabilityFormat = {
@@ -37,6 +39,8 @@ export function HomePage() {
   const [formatId, setFormatId] = useState("markdown");
   const [content, setContent] = useState("# Welcome\n\nPaste Markdown, JSON, YAML, CSV, or other text formats.\n");
   const [file, setFile] = useState<File | null>(null);
+  const [forceNewUpload, setForceNewUpload] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [url, setUrl] = useState("");
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<string | null>(null);
@@ -100,7 +104,26 @@ export function HomePage() {
     if (/unsupported format/i.test(raw) || /UNSUPPORTED_MEDIA_TYPE/i.test(raw) || /415/.test(raw)) {
       return `${raw} — See Format support below or GET /v1/capabilities.`;
     }
+    if (/quota exceeded/i.test(raw) || /PAYLOAD_TOO_LARGE/i.test(raw)) {
+      return `${raw} — Open an existing document from Recent below, or remove documents to free quota.`;
+    }
     return raw;
+  }
+
+  function resetFileInput() {
+    setFile(null);
+    setForceNewUpload(false);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  async function openIngested(created: DocMeta, accessToken: string) {
+    if (created.duplicateOfExisting) {
+      setProgress(created.message ?? "Identical content already in your library — opening existing…");
+    }
+    if (created.status !== "ready") {
+      await waitUntilReady(created.id, accessToken);
+    }
+    navigate(`/documents/${created.id}`);
   }
 
   async function onPaste(e: FormEvent) {
@@ -114,8 +137,7 @@ export function HomePage() {
         method: "POST",
         body: JSON.stringify({ title, formatId, content }),
       })) as DocMeta;
-      await waitUntilReady(created.id, token);
-      navigate(`/documents/${created.id}`);
+      await openIngested(created, token);
     } catch (err) {
       setError(formatError(err));
     } finally {
@@ -134,12 +156,13 @@ export function HomePage() {
       const form = new FormData();
       form.append("file", file);
       if (title) form.append("title", title);
+      if (forceNewUpload) form.append("forceNew", "true");
       const created = (await apiFetch("/v1/documents/upload", token, {
         method: "POST",
         body: form,
       })) as DocMeta;
-      await waitUntilReady(created.id, token);
-      navigate(`/documents/${created.id}`);
+      resetFileInput();
+      await openIngested(created, token);
     } catch (err) {
       setError(formatError(err));
     } finally {
@@ -270,10 +293,22 @@ export function HomePage() {
                 <label>
                   File (text-based formats, max 10 MiB)
                   <input
+                    ref={fileInputRef}
                     type="file"
                     accept={acceptAttr}
-                    onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                    onChange={(e) => {
+                      setFile(e.target.files?.[0] ?? null);
+                      setForceNewUpload(false);
+                    }}
                   />
+                </label>
+                <label className="check" style={{ marginTop: "0.75rem", display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                  <input
+                    type="checkbox"
+                    checked={forceNewUpload}
+                    onChange={(e) => setForceNewUpload(e.target.checked)}
+                  />
+                  Upload as a new document even if identical content already exists
                 </label>
                 <p style={{ marginTop: "1rem" }}>
                   <button type="submit" disabled={busy || !file}>

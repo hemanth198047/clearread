@@ -316,11 +316,18 @@
   font-size: 0.88rem;
   line-height: 1.5;
   margin: 0;
+  color: var(--reader-text);
+}
+
+.original-empty {
+  margin: 0;
+  font-family: var(--reader-font-ui);
+  font-size: 0.95rem;
+  color: var(--reader-muted);
 }
 
 .original-only {
   padding: 1.25rem 1.5rem 3rem;
-  overflow: auto;
 }
 
 .reader-footer-bar {

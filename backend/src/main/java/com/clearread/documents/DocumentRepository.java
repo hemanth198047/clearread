@@ -236,6 +236,22 @@ public class DocumentRepository {
         ).stream().findFirst();
     }
 
+    /** Most recently updated non-deleted document with matching original SHA-256 (same-bytes soft-dedup). */
+    public Optional<DocumentRecord> findByTenantAndOriginalSha(UUID tenantId, String sha256) {
+        return jdbc.query(
+                """
+                SELECT id, tenant_id, title, format_id, status, original_object_key, original_sha256,
+                       original_byte_length, original_filename, created_by, current_revision_id
+                FROM documents
+                WHERE tenant_id = ? AND original_sha256 = ? AND deleted_at IS NULL
+                ORDER BY updated_at DESC
+                LIMIT 1
+                """,
+                MAPPER,
+                tenantId, sha256
+        ).stream().findFirst();
+    }
+
     public Optional<DocumentRecord> findByIdAnyTenant(UUID documentId) {
         return jdbc.query(
                 """

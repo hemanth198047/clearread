@@ -27,10 +27,41 @@ const SHORTCUTS: [string, string][] = [
   ["?", "Keyboard shortcut reference"],
 ];
 
+function OriginalSourcePane({
+  originalText,
+  originalError,
+  originalLoading,
+}: {
+  originalText: string | null;
+  originalError?: string | null;
+  originalLoading?: boolean;
+}) {
+  if (originalError) {
+    return (
+      <p className="original-empty" role="alert">
+        Could not load original: {originalError}
+      </p>
+    );
+  }
+  if (originalLoading || originalText === null) {
+    return <p className="original-empty muted">Loading original…</p>;
+  }
+  if (originalText.length === 0) {
+    return (
+      <p className="original-empty" role="status">
+        Original file is empty.
+      </p>
+    );
+  }
+  return <pre className="original-source">{originalText}</pre>;
+}
+
 export function ReaderShell({
   meta,
   doc,
   originalText,
+  originalError = null,
+  originalLoading = false,
   onDownloadOriginal,
   onReprocess,
   initialFindQuery = "",
@@ -38,6 +69,8 @@ export function ReaderShell({
   meta: DocMeta;
   doc: ClearDoc;
   originalText: string | null;
+  originalError?: string | null;
+  originalLoading?: boolean;
   onDownloadOriginal: () => void;
   onReprocess?: () => void;
   /** From library search `?q=` deep-link */
@@ -59,7 +92,8 @@ export function ReaderShell({
   const outline = useMemo(() => segmentOutline(doc, prefs.segmentation), [doc, prefs.segmentation]);
   const hitCount = useMemo(() => countHits(doc, query, prefs), [doc, query, prefs]);
 
-  // Deep link + scroll restoration + library search handoff
+  // Deep link + per-viewMode scroll restoration + library search handoff.
+  // Read-mode scroll must not apply to Original/Compare — short sources would scroll out of view.
   useEffect(() => {
     const el = mainRef.current;
     if (!el) return;
@@ -69,15 +103,15 @@ export function ReaderShell({
       queueMicrotask(() => findRef.current?.focus());
     }
     const hash = location.hash.replace(/^#/, "");
-    if (hash) {
+    if (hash && prefs.viewMode === "read") {
       const target = el.querySelector(`#${CSS.escape(hash)}`);
       target?.scrollIntoView({ block: "start" });
       return;
     }
-    if (initialFindQuery.trim()) return;
-    const key = SCROLL_KEY_PREFIX + meta.id;
+    if (initialFindQuery.trim() && prefs.viewMode === "read") return;
+    const key = `${SCROLL_KEY_PREFIX}${meta.id}.${prefs.viewMode}`;
     const saved = sessionStorage.getItem(key);
-    if (saved) el.scrollTop = Number(saved) || 0;
+    el.scrollTop = saved ? Number(saved) || 0 : 0;
   }, [location.hash, meta.id, doc, prefs.viewMode, initialFindQuery]);
 
   const onMainScroll = useCallback(() => {
@@ -85,7 +119,7 @@ export function ReaderShell({
     if (!el) return;
     const max = el.scrollHeight - el.clientHeight;
     setProgress(max > 0 ? Math.min(100, (el.scrollTop / max) * 100) : 0);
-    sessionStorage.setItem(SCROLL_KEY_PREFIX + meta.id, String(el.scrollTop));
+    sessionStorage.setItem(`${SCROLL_KEY_PREFIX}${meta.id}.${prefs.viewMode}`, String(el.scrollTop));
 
     const headings = [...el.querySelectorAll<HTMLElement>("h1[id],h2[id],h3[id],h4[id],h5[id],h6[id]")];
     let current: string | null = null;
@@ -93,7 +127,7 @@ export function ReaderShell({
       if (h.offsetTop - el.scrollTop <= 80) current = h.id;
     }
     setActiveId(current);
-  }, [meta.id]);
+  }, [meta.id, prefs.viewMode]);
 
   useEffect(() => {
     const el = mainRef.current;
@@ -435,14 +469,22 @@ export function ReaderShell({
           {prefs.viewMode === "original" && (
             <div className="original-only">
               <p className="pane-label">Original source (immutable)</p>
-              <pre className="original-source">{originalText ?? "Loading original…"}</pre>
+              <OriginalSourcePane
+                originalText={originalText}
+                originalError={originalError}
+                originalLoading={originalLoading}
+              />
             </div>
           )}
           {prefs.viewMode === "compare" && (
             <div className="reader-compare">
               <div className="pane-original">
                 <p className="pane-label">Original</p>
-                <pre className="original-source">{originalText ?? "Loading original…"}</pre>
+                <OriginalSourcePane
+                  originalText={originalText}
+                  originalError={originalError}
+                  originalLoading={originalLoading}
+                />
               </div>
               <div>
                 <p className="pane-label">Derived ClearDoc (generated structure)</p>

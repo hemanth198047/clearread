@@ -38,7 +38,7 @@ public class DocumentController {
         this.exportService = exportService;
     }
 
-    public record PasteRequest(String title, @NotBlank String formatId, @NotBlank String content) {
+    public record PasteRequest(String title, @NotBlank String formatId, @NotBlank String content, Boolean forceNew) {
     }
 
     public record UrlIngestRequest(String title, @NotBlank String url) {
@@ -54,24 +54,29 @@ public class DocumentController {
     Map<String, Object> upload(
             HttpServletRequest request,
             @RequestPart("file") MultipartFile file,
-            @RequestPart(value = "title", required = false) String title
+            @RequestPart(value = "title", required = false) String title,
+            @RequestPart(value = "forceNew", required = false) String forceNew
     ) throws IOException {
         UserRecord user = MeController.requireUser(request);
-        DocumentRecord doc = documentService.ingestUpload(
+        boolean force = parseForceNew(forceNew);
+        DocumentService.IngestResult result = documentService.ingestUpload(
                 user,
                 title,
                 file.getOriginalFilename(),
                 file.getContentType(),
-                file.getBytes()
+                file.getBytes(),
+                force
         );
-        return documentService.toMeta(doc);
+        return documentService.toMeta(result.document(), result.duplicateOfExisting());
     }
 
     @PostMapping(path = "/paste", consumes = MediaType.APPLICATION_JSON_VALUE)
     Map<String, Object> paste(HttpServletRequest request, @RequestBody PasteRequest body) {
         UserRecord user = MeController.requireUser(request);
-        DocumentRecord doc = documentService.ingestPaste(user, body.title(), body.formatId(), body.content());
-        return documentService.toMeta(doc);
+        DocumentService.IngestResult result = documentService.ingestPaste(
+                user, body.title(), body.formatId(), body.content(), Boolean.TRUE.equals(body.forceNew())
+        );
+        return documentService.toMeta(result.document(), result.duplicateOfExisting());
     }
 
     @PostMapping(path = "/from-url", consumes = MediaType.APPLICATION_JSON_VALUE)
@@ -177,6 +182,14 @@ public class DocumentController {
                 .header("X-ClearRead-Artifact-Kind", "generated")
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
                 .body(bytes);
+    }
+
+    private static boolean parseForceNew(String forceNew) {
+        if (forceNew == null || forceNew.isBlank()) {
+            return false;
+        }
+        String v = forceNew.trim();
+        return "true".equalsIgnoreCase(v) || "1".equals(v) || "yes".equalsIgnoreCase(v);
     }
 
     private static String safeName(String name) {
