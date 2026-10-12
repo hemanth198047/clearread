@@ -79,7 +79,9 @@ public final class UrlAccessPolicy {
         if ("localhost".equals(hostLower)
                 || hostLower.endsWith(".localhost")
                 || hostLower.endsWith(".local")
-                || "metadata.google.internal".equals(hostLower)) {
+                || "metadata".equals(hostLower)
+                || "metadata.google.internal".equals(hostLower)
+                || hostLower.endsWith(".internal")) {
             throw new Denied("HOST_DENIED", "Host is not allowed");
         }
         int port = uri.getPort();

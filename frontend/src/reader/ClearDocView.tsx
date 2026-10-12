@@ -439,10 +439,20 @@ export function ClearDocView({
       aria-label={doc.metadata?.title ?? "Document"}
     >
       <h1>{doc.metadata?.title ?? "Document"}</h1>
-      {doc.warnings?.length > 0 && showInferred && (
-        <p style={{ color: "var(--reader-muted)", fontFamily: "var(--reader-font-ui)", fontSize: "0.9rem" }}>
-          {doc.warnings.length} processing note{doc.warnings.length === 1 ? "" : "s"} (structure may be inferred).
-        </p>
+      {doc.warnings?.length > 0 && (
+        <aside className="reader-warnings" aria-label="Processing notes">
+          <p className="muted">
+            {doc.warnings.length} processing note{doc.warnings.length === 1 ? "" : "s"} — generated structure may differ
+            from source.
+          </p>
+          <ul>
+            {doc.warnings.map((w, i) => (
+              <li key={`${w.code}-${i}`}>
+                <code>{w.code}</code> {w.message}
+              </li>
+            ))}
+          </ul>
+        </aside>
       )}
       {slice.map((node, i) => (
         <Block
