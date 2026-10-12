@@ -49,6 +49,8 @@ public class ClearReadProperties {
         private String primaryColor = "#1a5f4a";
         private String secondaryColor = "#c4a35a";
         private String logoUrl = "";
+        /** When true, SPA shows local demo account credentials (hide in production). */
+        private boolean showDemoAccounts = true;
 
         public String getProductName() {
             return productName;
@@ -80,6 +82,14 @@ public class ClearReadProperties {
 
         public void setLogoUrl(String logoUrl) {
             this.logoUrl = logoUrl;
+        }
+
+        public boolean isShowDemoAccounts() {
+            return showDemoAccounts;
+        }
+
+        public void setShowDemoAccounts(boolean showDemoAccounts) {
+            this.showDemoAccounts = showDemoAccounts;
         }
     }
 

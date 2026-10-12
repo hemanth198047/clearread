@@ -3,6 +3,7 @@ import { useAuth } from "./auth/AuthProvider";
 import { useBranding } from "./branding/BrandingProvider";
 import { AdminPage } from "./pages/AdminPage";
 import { HomePage } from "./pages/HomePage";
+import { InvitePage } from "./pages/InvitePage";
 import { LibraryPage } from "./pages/LibraryPage";
 import { PreviewPage } from "./pages/PreviewPage";
 import { ReaderPage } from "./pages/ReaderPage";
@@ -43,9 +44,14 @@ export function App() {
                 </button>
               </>
             ) : (
-              <button type="button" onClick={() => void auth.login()}>
-                Sign in
-              </button>
+              <>
+                <button type="button" className="secondary" onClick={() => void auth.register()}>
+                  Create account
+                </button>
+                <button type="button" onClick={() => void auth.login()}>
+                  Sign in
+                </button>
+              </>
             )}
           </div>
         </header>
@@ -54,6 +60,7 @@ export function App() {
             <Route path="/" element={<HomePage />} />
             <Route path="/library" element={<LibraryPage />} />
             <Route path="/admin" element={<AdminPage />} />
+            <Route path="/invite/:token" element={<InvitePage />} />
             <Route path="/documents/:id" element={<ReaderPage />} />
             <Route path="/preview/:token" element={<PreviewPage />} />
             <Route path="/auth/callback" element={<p className="muted">Completing sign-in…</p>} />

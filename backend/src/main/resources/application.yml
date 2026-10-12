@@ -45,6 +45,8 @@ clearread:
     primary-color: ${CLEARREAD_PRIMARY_COLOR:#1a5f4a}
     secondary-color: ${CLEARREAD_SECONDARY_COLOR:#c4a35a}
     logo-url: ${CLEARREAD_LOGO_URL:}
+    # Local/Compose default: show admin/user/demo credentials on the landing page. Set false in production.
+    show-demo-accounts: ${CLEARREAD_SHOW_DEMO_ACCOUNTS:true}
   limits:
     max-upload-bytes: ${CLEARREAD_MAX_UPLOAD_BYTES:10485760}
     max-nesting-depth: 64

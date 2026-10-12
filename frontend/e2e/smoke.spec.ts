@@ -21,6 +21,15 @@ test.beforeAll(async () => {
 
 test.describe.configure({ mode: "serial" });
 
+test("landing shows signup and demo accounts", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByTestId("create-account")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Sign in" }).first()).toBeVisible();
+  await expect(page.getByTestId("demo-accounts")).toBeVisible();
+  await expect(page.getByTestId("demo-accounts")).toContainText("admin");
+  await expect(page.getByTestId("demo-accounts")).toContainText("user");
+});
+
 test("paste → read", async ({ page }) => {
   await loginViaPasswordGrant(page);
   await page.goto("/");

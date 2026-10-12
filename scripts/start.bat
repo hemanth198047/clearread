@@ -136,8 +136,12 @@ echo.
 echo ClearRead started.
 echo   Web:      http://localhost:%CLEARREAD_WEB_PORT%
 echo   API:      http://localhost:%CLEARREAD_API_PORT%
-echo   Keycloak: http://localhost:%CLEARREAD_KEYCLOAK_PORT%  (admin/admin)
-echo   Demo user: demo / demo
+echo   Keycloak: http://localhost:%CLEARREAD_KEYCLOAK_PORT%  (console admin/admin on master)
+echo   Demo accounts (ClearRead realm):
+echo     admin / admin  — workspace admin
+echo     user  / user   — standard member (author)
+echo     demo  / demo   — legacy admin (compat)
+echo   Sign up: open Web -^> Create account (Keycloak self-registration)
 echo Smoke: scripts\check.bat
 echo Stop with: scripts\stop.bat
 endlocal

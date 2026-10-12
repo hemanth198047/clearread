@@ -38,6 +38,7 @@ public class SecurityConfig {
                         .requestMatchers("/actuator/health", "/actuator/health/**", "/actuator/info").permitAll()
                         .requestMatchers("/actuator/prometheus", "/actuator/metrics", "/actuator/metrics/**").authenticated()
                         .requestMatchers("/v1/health", "/v1/capabilities", "/v1/branding/default").permitAll()
+                        .requestMatchers("/v1/invites/**").permitAll()
                         .requestMatchers("/v1/preview/**").permitAll()
                         // Share resolve enforces requireAuth / expiry / revoke in ShareService
                         .requestMatchers("/v1/shared/**").permitAll()

@@ -2,9 +2,19 @@
 
 ## Identity
 
-- Production: replace demo Keycloak with your enterprise IdP; rotate clients; disable `demo`.
+- Local Compose Keycloak realm `clearread` seeds **admin** / **admin**, **user** / **user**, and legacy **demo** / **demo**. Self-registration is on for local DX.
+- Production: replace demo Keycloak with your enterprise IdP; rotate clients; disable seeded users and IdP self-registration; set `CLEARREAD_SHOW_DEMO_ACCOUNTS=false`.
 - Configure issuer + JWK via `CLEARREAD_OIDC_ISSUER` and `CLEARREAD_OIDC_JWK_SET_URI`.
 - SPA client: PKCE public client (local: `clearread-spa`).
+
+## Inviting users
+
+1. Sign in as a workspace **admin**.
+2. Admin → **Invite user** → email + role → **Create invite link**.
+3. Copy the invite URL (ClearRead does not send email). Share it with the invitee.
+4. Invitee opens `/invite/{token}`, creates an account (or signs in) with that email; first login accepts the invite and joins the workspace with the invited role.
+
+Enterprise alternative: provision users in your org IdP / SSO and map them into the workspace (or use IdP invite flows). ClearRead records pending invites in Postgres (`workspace_invites`) for auditability.
 
 ## Branding
 
@@ -13,8 +23,9 @@ Environment overrides (see `application.yml`):
 - `CLEARREAD_PRODUCT_NAME`
 - `CLEARREAD_PRIMARY_COLOR` / `CLEARREAD_SECONDARY_COLOR`
 - `CLEARREAD_LOGO_URL`
+- `CLEARREAD_SHOW_DEMO_ACCOUNTS` — landing-page demo credentials (default `true` locally)
 
-`GET /v1/branding/default` exposes the active branding to the SPA.
+`GET /v1/branding/default` exposes the active branding to the SPA (includes `showDemoAccounts`).
 
 ## Workspace / AI policy
 
@@ -38,9 +49,3 @@ Environment overrides (see `application.yml`):
 - Liveness/readiness: Spring Boot probes (`/actuator/health`).
 - Metrics: Prometheus at `/actuator/prometheus` (authenticated).
 - Application logs: never log document bodies in production.
-
-## Capability honesty
-
-UI and API claims must match `GET /v1/capabilities`. Do not advertise AsciiDoc/RST ingest or live Mermaid rendering — they are final v1.0 non-goals / safe partials. See [format-support.md](../format-support.md).
-
-Full operator detail: [phase-6/operator-runbook.md](../phase-6/operator-runbook.md).
