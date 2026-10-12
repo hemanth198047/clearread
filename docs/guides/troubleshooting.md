@@ -1,24 +1,34 @@
-# Troubleshooting (ClearRead v1.0.6)
+# Troubleshooting (ClearRead v1.0.7)
+
+## Containers stuck in Created (Docker Desktop / WSL wedge)
+
+If `docker compose ps` shows **Created**, logs are empty, ports are free, and `start-deps` hangs on “Container … Starting”:
+
+1. Quit Docker Desktop → `wsl --shutdown` → start Docker Desktop (wait green).
+2. `docker start clearread-db-1` — if **this** hangs, only another Desktop/WSL reset helps; Compose cannot work around a wedged engine.
+3. `doctor.bat` then `scripts\start-deps.bat`.
+
+Full section: [ops/compose-deps-fix.md — Containers stuck in Created](../ops/compose-deps-fix.md#containers-stuck-in-created).
 
 ## Deps never start (db / LocalStack / Keycloak) — Windows P0
 
 If containers do not come up at all (or start scripts die before API):
 
-1. Run the doctor (Docker running? Compose V2? port conflicts? last logs?):
+1. Run the doctor (Docker running? Compose V2? port conflicts? **Created-stuck**? last logs?):
 
 ```bat
-scripts\doctor.bat
+doctor.bat
 ```
 
 2. Stop + optional volume wipe + deps-only start:
 
 ```bat
-scripts\stop.bat
+stop.bat
 docker volume rm clearread_clearread_pg clearread_clearread_minio clearread_clearread_keycloak
 scripts\start-deps.bat
 ```
 
-**v1.0.6 defaults:** Postgres host port **5433** (not 5432 — local Windows Postgres often owns 5432 and used to block the entire start). Object store is **LocalStack** under Compose service name `minio`. Keycloak health uses bash `/dev/tcp` on management port **9002**. Full write-up: [ops/compose-deps-fix.md](../ops/compose-deps-fix.md).
+**v1.0.6+ defaults:** Postgres host port **5433** (not 5432 — local Windows Postgres often owns 5432 and used to block the entire start). Object store is **LocalStack** under Compose service name `minio`. Keycloak health uses bash `/dev/tcp` on management port **9002**. **v1.0.7** adds Created-stuck detection + compose-up timeouts. Full write-up: [ops/compose-deps-fix.md](../ops/compose-deps-fix.md).
 
 ## Keycloak takes forever / start hangs on IdP
 

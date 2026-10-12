@@ -6,6 +6,7 @@ set PROJECT=clearread
 set COMPOSE_FILE=%ROOT%\infra\compose.yaml
 set EXITCODE=0
 set NEXT=
+set CREATED_STUCK=0
 
 if exist "%ROOT%\.env" (
   for /f "usebackq eol=# tokens=1,* delims==" %%A in ("%ROOT%\.env") do (
@@ -73,6 +74,18 @@ docker compose -p %PROJECT% -f "%COMPOSE_FILE%" %COMPOSE_ENVFILE% ps -a
 if errorlevel 1 echo ^(compose ps failed — project may not exist yet^)
 
 echo.
+echo --- Containers stuck in Created? ---
+call :check_created db
+call :check_created minio
+call :check_created keycloak
+
+if "!CREATED_STUCK!"=="1" (
+  call :print_created_stuck_recovery
+  if "!NEXT!"=="" set "NEXT=Quit Docker Desktop → wsl --shutdown → start Docker Desktop ^(wait green^) → docker start clearread-db-1 → scripts\start-deps.bat"
+  set EXITCODE=1
+)
+
+echo.
 echo --- Last logs ^(db / minio=LocalStack / keycloak^) ---
 echo.
 echo ^>^>^> db ^(tail 80^)
@@ -86,6 +99,11 @@ docker compose -p %PROJECT% -f "%COMPOSE_FILE%" %COMPOSE_ENVFILE% logs --tail=80
 
 echo.
 echo --- Health probes ---
+if "!CREATED_STUCK!"=="1" (
+  echo SKIP  Health probes — containers never left Created ^(fix Docker Desktop first^)
+  goto after_probes
+)
+
 docker compose -p %PROJECT% -f "%COMPOSE_FILE%" %COMPOSE_ENVFILE% exec -T db pg_isready -U clearread -d clearread >nul 2>&1
 if errorlevel 1 (
   echo FAIL  Postgres pg_isready
@@ -120,15 +138,18 @@ if errorlevel 1 (
   echo OK    Keycloak management /health/ready :%CLEARREAD_KEYCLOAK_MGMT_PORT%
 )
 
+:after_probes
 echo.
 echo === Next action ===
 if not "!NEXT!"=="" (
   echo !NEXT!
   echo.
-  echo If volumes look corrupt after many failed boots:
-  echo   scripts\stop.bat
-  echo   docker volume rm %PROJECT%_clearread_pg %PROJECT%_clearread_minio %PROJECT%_clearread_keycloak
-  echo   scripts\start-deps.bat
+  if not "!CREATED_STUCK!"=="1" (
+    echo If volumes look corrupt after many failed boots:
+    echo   scripts\stop.bat
+    echo   docker volume rm %PROJECT%_clearread_pg %PROJECT%_clearread_minio %PROJECT%_clearread_keycloak
+    echo   scripts\start-deps.bat
+  )
   echo Docs: docs\ops\compose-deps-fix.md
   endlocal & exit /b 1
 )
@@ -140,6 +161,61 @@ if %EXITCODE% NEQ 0 (
 echo Deps look reachable. If the app still fails: scripts\check.bat
 echo Docs: docs\ops\compose-deps-fix.md
 endlocal
+exit /b 0
+
+:check_created
+set SVC=%~1
+set CNAME=
+set STATE=
+set STATUS=
+for /f "tokens=1,2,3,4 delims=|" %%A in ('docker compose -p %PROJECT% -f "%COMPOSE_FILE%" %COMPOSE_ENVFILE% ps -a --format "{{.Service}}|{{.State}}|{{.Status}}|{{.Name}}" 2^>nul ^| findstr /B /I /C:"%SVC%|"') do (
+  set STATE=%%B
+  set STATUS=%%C
+  set CNAME=%%D
+)
+if "!STATE!"=="" (
+  echo INFO  %SVC% — no container yet
+  exit /b 0
+)
+echo !STATE! !STATUS! | findstr /I "Created" >nul
+if errorlevel 1 (
+  echo OK    %SVC% state=!STATE! status=!STATUS!
+  exit /b 0
+)
+echo FAIL  %SVC% STATUS=Created ^(never running^)  container=!CNAME!
+echo       Empty / missing logs usually mean docker start never completed.
+if not "!CNAME!"=="" (
+  echo --- docker inspect State ^(!CNAME!^) ---
+  docker inspect --format "{{json .State}}" !CNAME! 2>nul
+  echo.
+)
+set CREATED_STUCK=1
+set EXITCODE=1
+exit /b 0
+
+:print_created_stuck_recovery
+echo.
+echo !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+echo DIAGNOSIS: Containers stuck in Created — Docker Desktop / WSL is wedged
+echo !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+echo   STATUS=Created with empty logs means `docker start` never completed.
+echo   This is NOT Keycloak slowness, NOT a port conflict, NOT a ClearRead
+echo   healthcheck bug. App Compose cannot work around a wedged Docker engine.
+echo.
+echo   If `docker start clearread-db-1` itself hangs, ONLY this recovery works:
+echo.
+echo   1. Quit Docker Desktop completely ^(tray icon -^> Quit^)
+echo   2. In PowerShell or cmd:
+echo        wsl --shutdown
+echo   3. Start Docker Desktop and wait until the whale icon is green / Running
+echo   4. Then:
+echo        docker start clearread-db-1
+echo      ^(if THIS hangs, engine still wedged — repeat steps 1-3^)
+echo   5. Re-run:  scripts\doctor.bat   then   scripts\start-deps.bat
+echo.
+echo   Docs: docs\ops\compose-deps-fix.md#containers-stuck-in-created
+echo !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+echo.
 exit /b 0
 
 :check_port
