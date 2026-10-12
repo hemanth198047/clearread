@@ -1,6 +1,6 @@
-# ClearRead ![version](https://img.shields.io/badge/version-v1.0.4-1a5f4a)
+# ClearRead ![version](https://img.shields.io/badge/version-v1.0.5-1a5f4a)
 
-**ClearRead v1.0.4** (temporary product name; branding is configurable).  
+**ClearRead v1.0.5** (temporary product name; branding is configurable).  
 Turns Markdown and plain text into structured, accessible reading experiences — **preserves originals**, **no AI required** for the core path, and **honest format support** via a capability registry.
 
 ## Prerequisites
@@ -56,7 +56,15 @@ Windows: `scripts\start.bat` / `stop.bat` / `check.bat` / `backup.bat` / `restor
 
 **Sign up:** open the web UI → **Create account** (Keycloak self-registration). New accounts join the Demo Workspace automatically. Credentials on the landing page are shown only when `CLEARREAD_SHOW_DEMO_ACCOUNTS=true` (Compose default). Production: org IdP SSO / admin invite links — set `CLEARREAD_SHOW_DEMO_ACCOUNTS=false` and disable IdP self-registration.
 
-If an older Compose Keycloak container still has only `demo`, recreate it so the realm JSON re-imports: `docker compose -p clearread -f infra/compose.yaml up -d --force-recreate keycloak` (Keycloak has no persistent volume in this stack).
+Keycloak uses a **persistent data volume** (warm starts skip realm re-import). First boot often takes **1–3 minutes** on Docker Desktop; warm starts are usually under 30s. Start scripts time out at 240s with tips — see [docs/ops/keycloak-startup.md](docs/ops/keycloak-startup.md).
+
+If an older container or volume still has only `demo`, wipe the volume so the realm JSON re-imports:
+
+```bash
+docker compose -p clearread -f infra/compose.yaml stop keycloak
+docker volume rm clearread_clearread_keycloak
+docker compose -p clearread -f infra/compose.yaml up -d keycloak
+```
 
 ### Checks
 
@@ -85,6 +93,7 @@ Stop scripts tear down only the Compose project named `clearread` (and optional 
 | Deployment | [docs/guides/deployment.md](docs/guides/deployment.md) |
 | Backup / restore | [docs/guides/backup-restore.md](docs/guides/backup-restore.md) |
 | Troubleshooting | [docs/guides/troubleshooting.md](docs/guides/troubleshooting.md) |
+| Keycloak startup | [docs/ops/keycloak-startup.md](docs/ops/keycloak-startup.md) |
 | Format support | [docs/format-support.md](docs/format-support.md) |
 | Security | [docs/guides/security.md](docs/guides/security.md) |
 | Operator runbook | [docs/phase-6/operator-runbook.md](docs/phase-6/operator-runbook.md) |
@@ -139,7 +148,7 @@ Windows Postgres: `scripts\backup.bat`. Object sync: Git Bash `bash scripts/back
 
 ## Release status
 
-**v1.0.4** — patch on **v1.0.0 FINAL** (demo admin/user accounts + self-registration / invite path; prior: v1.0.3 Gradle native-platform cache, v1.0.2 Gradle image, v1.0.1 port fail-fast). Phases 1–6 + acceptance + post-acceptance hardening. See [CHANGELOG.md](CHANGELOG.md).
+**v1.0.5** — patch on **v1.0.0 FINAL** (Keycloak startup DX; prior: v1.0.4 demo accounts/signup, v1.0.3 Gradle native-platform cache, v1.0.2 Gradle image, v1.0.1 port fail-fast). Phases 1–6 + acceptance + post-acceptance hardening. See [CHANGELOG.md](CHANGELOG.md).
 
 | Phase | Docs |
 | --- | --- |

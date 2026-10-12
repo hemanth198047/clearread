@@ -1,4 +1,14 @@
-# Troubleshooting (ClearRead v1.0.3)
+# Troubleshooting (ClearRead v1.0.5)
+
+## Keycloak takes forever / start hangs on IdP
+
+First Keycloak boot (empty volume + realm import) often takes **1–3 minutes** on Windows Docker Desktop. Warm starts are usually under 30s. **v1.0.5+** start scripts print progress and fail after **240s** with tips instead of hanging forever. See [ops/keycloak-startup.md](../ops/keycloak-startup.md).
+
+```bat
+docker logs clearread-keycloak-1
+REM Give Docker Desktop 4GB+ RAM, then:
+docker compose -p clearread -f infra\compose.yaml up -d --force-recreate keycloak
+```
 
 ## Port already allocated / start hangs on API health
 

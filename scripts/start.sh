@@ -21,8 +21,10 @@ CLEARREAD_WEB_PORT="${CLEARREAD_WEB_PORT:-5173}"
 CLEARREAD_KEYCLOAK_PORT="${CLEARREAD_KEYCLOAK_PORT:-8081}"
 CLEARREAD_DB_PORT="${CLEARREAD_DB_PORT:-5432}"
 CLEARREAD_S3_PORT="${CLEARREAD_S3_PORT:-9000}"
+CLEARREAD_KEYCLOAK_WAIT_SECONDS="${CLEARREAD_KEYCLOAK_WAIT_SECONDS:-240}"
 
 export CLEARREAD_API_PORT CLEARREAD_WEB_PORT CLEARREAD_KEYCLOAK_PORT CLEARREAD_DB_PORT CLEARREAD_S3_PORT
+export CLEARREAD_KEYCLOAK_WAIT_SECONDS
 export VITE_API_BASE_URL="${VITE_API_BASE_URL:-http://localhost:${CLEARREAD_API_PORT}}"
 export VITE_OIDC_AUTHORITY="${VITE_OIDC_AUTHORITY:-http://localhost:${CLEARREAD_KEYCLOAK_PORT}/realms/clearread}"
 export CLEARREAD_OIDC_ISSUER="${CLEARREAD_OIDC_ISSUER:-http://localhost:${CLEARREAD_KEYCLOAK_PORT}/realms/clearread}"
@@ -123,6 +125,62 @@ api_container_failed() {
   return 1
 }
 
+keycloak_container_failed() {
+  local status
+  status="$("${COMPOSE[@]}" ps -a --format '{{.Service}} {{.State}} {{.Status}}' 2>/dev/null | awk '$1=="keycloak" {print; exit}')"
+  [[ -z "$status" ]] && return 1
+  echo "$status" | grep -Eiq 'exit|dead' && return 0
+  echo "$status" | grep -Eiq 'created|stopped' && return 0
+  return 1
+}
+
+# Poll realm OIDC discovery until ready or timeout (default 240s).
+wait_for_keycloak() {
+  local port="$CLEARREAD_KEYCLOAK_PORT"
+  local timeout="${CLEARREAD_KEYCLOAK_WAIT_SECONDS:-240}"
+  local elapsed=0
+  local url="http://localhost:${port}/realms/clearread/.well-known/openid-configuration"
+
+  echo "Waiting for Keycloak (${url})..."
+  echo "  First boot can take 1–3 minutes (Docker Desktop); warm starts are usually under 30s."
+  echo "  Timeout: ${timeout}s (override with CLEARREAD_KEYCLOAK_WAIT_SECONDS)."
+
+  while [[ "$elapsed" -lt "$timeout" ]]; do
+    if curl -sf "$url" >/dev/null 2>&1; then
+      echo "Keycloak is ready (${elapsed}s)."
+      return 0
+    fi
+    if keycloak_container_failed; then
+      echo "ERROR: Keycloak container is not running — stopping wait early." >&2
+      "${COMPOSE[@]}" ps -a keycloak >&2 || true
+      "${COMPOSE[@]}" logs --tail=60 keycloak >&2 || true
+      echo "  Tips: docker logs clearread-keycloak-1" >&2
+      echo "  Recreate: docker compose -p $PROJECT -f \"$COMPOSE_FILE\" up -d --force-recreate keycloak" >&2
+      echo "  Give Docker Desktop more RAM (4GB+ recommended)." >&2
+      echo "  See docs/ops/keycloak-startup.md" >&2
+      exit 1
+    fi
+    if (( elapsed % 15 == 0 )); then
+      local left=$((timeout - elapsed))
+      echo "  … Keycloak still starting (${elapsed}s elapsed, ${left}s left)"
+    fi
+    sleep 5
+    elapsed=$((elapsed + 5))
+  done
+
+  echo "ERROR: Keycloak did not become ready within ${timeout}s." >&2
+  "${COMPOSE[@]}" ps -a keycloak >&2 || true
+  "${COMPOSE[@]}" logs --tail=80 keycloak >&2 || true
+  echo "  Inspect: docker logs clearread-keycloak-1" >&2
+  echo "  Recreate: docker compose -p $PROJECT -f \"$COMPOSE_FILE\" up -d --force-recreate keycloak" >&2
+  echo "  Wipe realm volume after realm JSON changes:" >&2
+  echo "    docker compose -p $PROJECT -f \"$COMPOSE_FILE\" stop keycloak" >&2
+  echo "    docker volume rm ${PROJECT}_clearread_keycloak" >&2
+  echo "  Give Docker Desktop more RAM (4GB+); avoid thrashing." >&2
+  echo "  See docs/ops/keycloak-startup.md" >&2
+  exit 1
+}
+
 # Ensure wrapper is executable on host (hybrid fallback)
 if [[ -f "$ROOT/backend/gradlew" ]]; then
   chmod +x "$ROOT/backend/gradlew" || true
@@ -158,6 +216,7 @@ echo "Starting ClearRead Compose stack..."
 # Prefer full stack; if API never becomes healthy (e.g. broken container bridge networking),
 # fall through to host API + Vite against published dependency ports.
 compose_up_checked "deps" db minio keycloak
+wait_for_keycloak
 compose_up_checked "api/web" api web
 
 echo "$PROJECT" > "$PID_DIR/compose.project"

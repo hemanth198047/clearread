@@ -5,6 +5,22 @@ All notable changes to ClearRead are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.5] — 2026-10-12
+
+### Fixed
+
+- Local Keycloak startup is faster and more predictable on Docker Desktop: persistent data volume (realm import only on first boot), real `/health/ready` healthcheck, heap cap to reduce thrashing.
+- Start scripts (`start.sh` / `start.bat` / `start-deps.sh`) wait for Keycloak with visible progress and fail after **240s** with clear tips instead of hanging forever.
+
+### Added
+
+- Docs: [docs/ops/keycloak-startup.md](docs/ops/keycloak-startup.md) — expected first-boot vs warm-start times, volume wipe, Windows retry steps.
+- Optional `CLEARREAD_KEYCLOAK_WAIT_SECONDS` (default 240).
+
+### Changed
+
+- Compose `api` waits for Keycloak **healthy** before starting.
+
 ## [1.0.4] — 2026-10-12
 
 ### Added

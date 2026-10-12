@@ -10,7 +10,7 @@ Companion guides: [user](../guides/user.md) · [admin](../guides/admin.md) · [d
 | Web | `:5173` / `:80` in compose | SPA; OIDC PKCE |
 | Postgres | `:5432` | Flyway on boot |
 | Object store | `:9000` → LocalStack S3 | Prefix `tenants/{tenantId}/…` |
-| Keycloak | `:8081` | Realm `clearread`, client `clearread-spa`; accounts admin/admin, user/user, demo/demo |
+| Keycloak | `:8081` | Realm `clearread`, client `clearread-spa`; accounts admin/admin, user/user, demo/demo; local volume `clearread_keycloak` (see docs/ops/keycloak-startup.md) |
 
 ## Capability honesty
 
