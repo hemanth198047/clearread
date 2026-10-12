@@ -89,8 +89,12 @@ if [[ "$api_up" -ne 1 ]]; then
 fi
 
 if [[ "$api_up" -ne 1 ]]; then
-  echo "API did not become healthy. Check Compose logs or $PID_DIR/api.log" >&2
+  echo "API did not become healthy after Compose and host fallback." >&2
+  echo "  Compose logs:" >&2
   docker compose -p "$PROJECT" -f "$COMPOSE_FILE" logs --tail=80 api >&2 || true
+  echo "  Host API log (if present): $PID_DIR/api.log" >&2
+  echo "  Common causes: broken Docker bridge (deps not reachable from api container)," >&2
+  echo "  gradlew CRLF/exit 127 (see docs/ops/compose-build-fix.md), or DB not ready." >&2
   exit 1
 fi
 
@@ -100,6 +104,7 @@ echo "  Web:      http://localhost:5173"
 echo "  API:      http://localhost:8080"
 echo "  Keycloak: http://localhost:8081 (admin/admin)"
 echo "  Demo user: demo / demo"
+echo "Smoke: ./scripts/check.sh"
 echo "Stop with: ./scripts/stop.sh"
 echo
 echo "Verified local commands:"

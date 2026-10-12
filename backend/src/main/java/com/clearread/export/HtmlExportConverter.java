@@ -50,7 +50,14 @@ public class HtmlExportConverter implements ExportConverter {
                   th,td{border:1px solid #d9d2c5;padding:.4rem .6rem;text-align:left}
                   th{background:#efe9df}
                   .banner{font-family:system-ui,sans-serif;font-size:.85rem;color:#6b6560;border-bottom:1px solid #d9d2c5;padding-bottom:.75rem;margin-bottom:1.5rem}
-                  @media print{body{background:#fff;color:#000;max-width:none}}
+                  @media print{
+                    @page{margin:1.5cm}
+                    body{background:#fff;color:#000;max-width:none;margin:0;padding:0}
+                    .banner{color:#333;border-color:#999;break-after:avoid}
+                    pre,table,blockquote{break-inside:avoid}
+                    a[href]::after{content:""}
+                    h1,h2,h3{break-after:avoid}
+                  }
                 </style>
                 </head>
                 <body>

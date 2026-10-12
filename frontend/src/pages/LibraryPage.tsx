@@ -145,23 +145,44 @@ export function LibraryPage() {
 
       {error && <p role="alert">{error}</p>}
 
-      <ul className="library-list">
-        {docs.map((d) => (
-          <li key={d.id}>
-            <div>
-              <Link to={`/documents/${d.id}`}>{d.title}</Link>
-              <span className="muted">
-                {" "}
-                · {d.formatId} · {d.status}
-              </span>
-              {d.description ? <div className="muted">{d.description}</div> : null}
-            </div>
-            <button type="button" className="secondary" onClick={() => void toggleFavorite(d.id, d.favorite)}>
-              {d.favorite ? "★ Favorited" : "☆ Favorite"}
-            </button>
-          </li>
-        ))}
-      </ul>
+      {docs.length === 0 ? (
+        <div className="library-empty">
+          <p>No documents match these filters.</p>
+          <p className="muted">Paste, upload, or fetch a file from the home page to start reading.</p>
+          <p>
+            <Link to="/">Go to home</Link>
+          </p>
+        </div>
+      ) : (
+        <ul className="library-list">
+          {docs.map((d) => (
+            <li key={d.id}>
+              <div className="library-item-main">
+                <Link to={`/documents/${d.id}`}>{d.title}</Link>
+                <div className="library-meta muted">
+                  <span className="format-chip">{d.formatId}</span>
+                  <span>{d.status}</span>
+                  {d.updatedAt ? <span>{formatUpdated(d.updatedAt)}</span> : null}
+                </div>
+                {d.description ? <div className="muted library-desc">{d.description}</div> : null}
+              </div>
+              <button type="button" className="secondary" onClick={() => void toggleFavorite(d.id, d.favorite)}>
+                {d.favorite ? "★ Favorited" : "☆ Favorite"}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   );
+}
+
+function formatUpdated(iso: string): string {
+  try {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return iso;
+    return d.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+  } catch {
+    return iso;
+  }
 }

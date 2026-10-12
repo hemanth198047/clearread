@@ -1,5 +1,5 @@
 {
-  "registryVersion": "2026.10.3",
+  "registryVersion": "2026.10.4",
   "formats": [
     {
       "formatId": "markdown",
@@ -13,11 +13,13 @@
         "lists": "supported",
         "tables": "partial",
         "codeBlocks": "supported",
+        "mermaid": "partial",
         "remoteImages": "unsupported",
         "urlIngest": "supported"
       },
+      "notes": "GFM pipe tables map to dataTable (no rowspan/colspan). Mermaid fences are kept as source plus a size-limited text outline — diagrams are never executed in the reader.",
       "adapterId": "markdown-commonmark-gfm",
-      "adapterVersion": "1.0.0"
+      "adapterVersion": "1.0.1"
     },
     {
       "formatId": "plain-text",
@@ -161,6 +163,34 @@
       "notes": "Uploaded HTML files are sanitized. URL ingest rejects ordinary web pages (no silent scraping).",
       "adapterId": "html-sanitize",
       "adapterVersion": "1.0.0"
+    },
+    {
+      "formatId": "asciidoc",
+      "displayName": "AsciiDoc",
+      "extensions": [".adoc", ".asciidoc", ".asc"],
+      "mimeTypes": ["text/asciidoc", "text/x-asciidoc"],
+      "ingest": "unsupported",
+      "features": {
+        "headings": "unsupported",
+        "includes": "unsupported"
+      },
+      "notes": "Registered for honesty only — no AsciiDoc parser ships in this release. Convert to Markdown or paste plain text.",
+      "adapterId": null,
+      "adapterVersion": null
+    },
+    {
+      "formatId": "rst",
+      "displayName": "reStructuredText",
+      "extensions": [".rst", ".rest"],
+      "mimeTypes": ["text/x-rst", "text/rst"],
+      "ingest": "unsupported",
+      "features": {
+        "headings": "unsupported",
+        "directives": "unsupported"
+      },
+      "notes": "Registered for honesty only — no RST parser ships in this release. Convert to Markdown or paste plain text.",
+      "adapterId": null,
+      "adapterVersion": null
     }
   ],
   "urlIngest": {
@@ -170,7 +200,7 @@
     "webPages": "rejected-with-explanation"
   },
   "exports": {
-    "note": "Phase 4: markdown + sanitized HTML registered. PDF deferred (same API seam, converter not registered).",
+    "note": "Markdown, sanitized HTML, and constrained text PDF. All exports are generated artifacts (artifactKind=generated), not the immutable original.",
     "converters": [
       {
         "targetFormat": "markdown",
@@ -183,6 +213,13 @@
         "converterId": "cleardoc-to-html-sanitized",
         "converterVersion": "1.0.0",
         "artifactKind": "generated"
+      },
+      {
+        "targetFormat": "pdf",
+        "converterId": "cleardoc-to-pdf-constrained",
+        "converterVersion": "1.0.0",
+        "artifactKind": "generated",
+        "notes": "Plain-text layout from ClearDoc only — not a pixel-perfect print engine."
       }
     ]
   }

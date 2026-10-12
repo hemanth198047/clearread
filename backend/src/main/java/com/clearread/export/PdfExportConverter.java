@@ -55,9 +55,19 @@ public class PdfExportConverter implements ExportConverter {
                 render(node, pdf, body, mono, h1);
             }
             pdf.close();
-            return new ExportResult(baos.toByteArray(), "application/pdf", ".pdf");
+            byte[] bytes = baos.toByteArray();
+            if (bytes.length < 5 || bytes[0] != '%' || bytes[1] != 'P') {
+                throw new IllegalStateException("PDF export produced invalid output");
+            }
+            return new ExportResult(bytes, "application/pdf", ".pdf");
+        } catch (IllegalStateException e) {
+            throw e;
         } catch (Exception e) {
-            throw new IllegalStateException("PDF export failed: " + e.getMessage(), e);
+            throw new IllegalStateException(
+                    "Constrained PDF export failed (" + e.getClass().getSimpleName() + "): "
+                            + (e.getMessage() != null ? e.getMessage() : "unknown error"),
+                    e
+            );
         }
     }
 
@@ -104,7 +114,17 @@ public class PdfExportConverter implements ExportConverter {
                     }
                 }
             }
-            case "treeNode" -> pdf.add(new Paragraph(String.valueOf(node.getOrDefault("label", "")), mono));
+            case "treeNode" -> {
+                String label = String.valueOf(node.getOrDefault("label", ""));
+                Object preview = node.get("valuePreview");
+                pdf.add(new Paragraph(preview != null ? label + " = " + preview : label, mono));
+                List<Map<String, Object>> children = (List<Map<String, Object>>) node.get("children");
+                if (children != null) {
+                    for (Map<String, Object> c : children) {
+                        render(c, pdf, body, mono, heading);
+                    }
+                }
+            }
             case "thematicBreak" -> pdf.add(new Paragraph("---", body));
             default -> {
                 // skip unknown

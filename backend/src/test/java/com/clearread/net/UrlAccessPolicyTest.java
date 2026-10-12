@@ -19,6 +19,8 @@ class UrlAccessPolicyTest {
         assertEquals("SCHEME_DENIED", ex.code());
         assertThrows(UrlAccessPolicy.Denied.class, () -> policy.validate("ftp://example.com/a"));
         assertThrows(UrlAccessPolicy.Denied.class, () -> policy.validate("gopher://example.com/a"));
+        assertThrows(UrlAccessPolicy.Denied.class, () -> policy.validate("dict://example.com/a"));
+        assertThrows(UrlAccessPolicy.Denied.class, () -> policy.validate("ldap://example.com/a"));
     }
 
     @Test
@@ -33,8 +35,10 @@ class UrlAccessPolicyTest {
         assertThrows(UrlAccessPolicy.Denied.class, () -> policy.validate("http://localhost/x"));
         assertThrows(UrlAccessPolicy.Denied.class, () -> policy.validate("http://127.0.0.1/x"));
         assertThrows(UrlAccessPolicy.Denied.class, () -> policy.validate("http://[::1]/x"));
+        assertThrows(UrlAccessPolicy.Denied.class, () -> policy.validate("http://0.0.0.0/x"));
         assertThrows(UrlAccessPolicy.Denied.class, () -> policy.validate("http://169.254.169.254/latest/meta-data/"));
         assertThrows(UrlAccessPolicy.Denied.class, () -> policy.validate("http://metadata.google.internal/"));
+        assertThrows(UrlAccessPolicy.Denied.class, () -> policy.validate("http://metadata/latest/meta-data/"));
     }
 
     @Test

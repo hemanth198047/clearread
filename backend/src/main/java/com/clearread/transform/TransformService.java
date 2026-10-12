@@ -65,6 +65,13 @@ public class TransformService {
         if ("html".equals(ext) || "htm".equals(ext) || lowerType.contains("text/html")) {
             return "html";
         }
+        if ("adoc".equals(ext) || "asciidoc".equals(ext) || "asc".equals(ext)
+                || lowerType.contains("asciidoc")) {
+            return "asciidoc";
+        }
+        if ("rst".equals(ext) || "rest".equals(ext) || lowerType.contains("x-rst") || lowerType.contains("restructuredtext")) {
+            return "rst";
+        }
         if (SOURCE_EXTS.contains(ext)) {
             return "source-code";
         }

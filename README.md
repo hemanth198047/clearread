@@ -41,6 +41,8 @@ Then open **http://localhost:5173**
 
 `scripts/start.sh` starts the Compose stack and, if the API container cannot become healthy, automatically falls back to a host-run API + Vite against the published dependency ports. `scripts/stop.sh` still only stops the ClearRead Compose project and ClearRead-tracked host PIDs.
 
+Windows: `scripts\start.bat` / `stop.bat` / `check.bat` / `backup.bat` / `restore.bat`. The `.bat` start path does **not** include host fallback — if Compose API never becomes healthy (Docker bridge issues), use Git Bash or WSL with `bash scripts/start.sh`. See the [operator runbook](docs/phase-6/operator-runbook.md) troubleshooting section.
+
 **Demo login (Keycloak):** username `demo`, password `demo`
 
 ### Checks
@@ -129,7 +131,7 @@ AI is **off by default**. Enable in Admin → Optional AI enrichment (mock-local
 
 ### Operators (Phase 6)
 
-See [docs/phase-6/operator-runbook.md](docs/phase-6/operator-runbook.md). Backup: `./scripts/backup.sh`.
+See [docs/phase-6/operator-runbook.md](docs/phase-6/operator-runbook.md). Backup: `./scripts/backup.sh` (Windows: `scripts\backup.bat`).
 
 ## Principles
 
