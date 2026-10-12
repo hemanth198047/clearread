@@ -5,6 +5,17 @@ All notable changes to ClearRead are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.8] — 2026-10-12
+
+### Fixed
+
+- **Original view empty:** Reader scroll position is stored per view mode (Read / Original / Compare). Switching to Original no longer re-applies Read scroll, which scrolled short `.md` sources out of view. Original/Compare also show explicit loading and error empty states instead of a blank pane.
+- **Re-upload same file:** Uploading identical bytes returns the existing document (`duplicateOfExisting`) and opens it — no hard failure. Optional “upload as new document” (`forceNew`) still creates a second copy. File input resets after upload so the same path can be chosen again on Windows.
+
+### Added
+
+- Integration coverage for duplicate upload soft-dedup + force-new; frontend tests for Original pane content, loading/error states, and scroll isolation.
+
 ## [1.0.7] — 2026-10-12
 
 ### Fixed

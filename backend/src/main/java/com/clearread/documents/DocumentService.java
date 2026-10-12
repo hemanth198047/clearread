@@ -25,6 +25,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -68,16 +69,23 @@ public class DocumentService {
         this.audit = audit;
     }
 
-    @Transactional
-    public DocumentRecord ingestUpload(UserRecord user, String title, String filename, String contentType, byte[] bytes) {
-        return ingestBytes(user, title, filename, contentType, bytes, "upload", null);
+    public record IngestResult(DocumentRecord document, boolean duplicateOfExisting) {
     }
 
     @Transactional
-    public DocumentRecord ingestPaste(UserRecord user, String title, String formatId, String text) {
+    public IngestResult ingestUpload(
+            UserRecord user, String title, String filename, String contentType, byte[] bytes, boolean forceNew
+    ) {
+        return ingestBytes(user, title, filename, contentType, bytes, "upload", null, forceNew);
+    }
+
+    @Transactional
+    public IngestResult ingestPaste(UserRecord user, String title, String formatId, String text, boolean forceNew) {
         String filename = (title == null || title.isBlank() ? "paste" : title) + extensionFor(formatId);
         String contentType = contentTypeFor(formatId);
-        return ingestBytes(user, title, filename, contentType, text.getBytes(StandardCharsets.UTF_8), "paste", formatId);
+        return ingestBytes(
+                user, title, filename, contentType, text.getBytes(StandardCharsets.UTF_8), "paste", formatId, forceNew
+        );
     }
 
     /**
@@ -176,14 +184,15 @@ public class DocumentService {
         return out;
     }
 
-    private DocumentRecord ingestBytes(
+    private IngestResult ingestBytes(
             UserRecord user,
             String title,
             String filename,
             String contentType,
             byte[] bytes,
             String sourceKind,
-            String forcedFormatId
+            String forcedFormatId,
+            boolean forceNew
     ) {
         requireAuthor();
         if (bytes == null || bytes.length == 0) {
@@ -195,7 +204,6 @@ public class DocumentService {
         if (bytes.length > maxBytes) {
             throw new ResponseStatusException(HttpStatus.PAYLOAD_TOO_LARGE, "Upload exceeds max size");
         }
-        libraryService.assertWithinQuota(tenantId);
 
         String formatId = forcedFormatId != null ? forcedFormatId : transformService.detectFormat(filename, contentType);
         if (formatId == null || !capabilities.supportsIngest(formatId)) {
@@ -206,8 +214,18 @@ public class DocumentService {
             throw new ResponseStatusException(HttpStatus.UNSUPPORTED_MEDIA_TYPE, detail);
         }
 
-        UUID documentId = UUID.randomUUID();
         String sha = ObjectStorageService.sha256(bytes);
+        if (!forceNew) {
+            Optional<DocumentRecord> existing = documents.findByTenantAndOriginalSha(tenantId, sha);
+            if (existing.isPresent()
+                    && documents.canRead(tenantId, existing.get().id(), user.id(), TenantContext.roleOrNull())) {
+                return new IngestResult(existing.get(), true);
+            }
+        }
+
+        libraryService.assertWithinQuota(tenantId);
+
+        UUID documentId = UUID.randomUUID();
         String key = storage.originalKey(tenantId, documentId, sha);
         storage.putBytes(key, bytes, contentType != null ? contentType : "application/octet-stream");
 
@@ -235,7 +253,7 @@ public class DocumentService {
         } catch (Exception e) {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to enqueue job");
         }
-        return doc;
+        return new IngestResult(doc, false);
     }
 
     public DocumentRecord getForRead(UserRecord user, UUID documentId) {
@@ -337,6 +355,10 @@ public class DocumentService {
     }
 
     public Map<String, Object> toMeta(DocumentRecord doc) {
+        return toMeta(doc, false);
+    }
+
+    public Map<String, Object> toMeta(DocumentRecord doc, boolean duplicateOfExisting) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("id", doc.id().toString());
         m.put("tenantId", doc.tenantId().toString());
@@ -347,6 +369,10 @@ public class DocumentService {
         m.put("originalByteLength", doc.originalByteLength() == null ? 0 : doc.originalByteLength());
         m.put("originalFilename", doc.originalFilename() == null ? "" : doc.originalFilename());
         m.put("currentRevisionId", doc.currentRevisionId() == null ? "" : doc.currentRevisionId().toString());
+        if (duplicateOfExisting) {
+            m.put("duplicateOfExisting", true);
+            m.put("message", "Identical content already in your library — opening existing document.");
+        }
         return m;
     }
 

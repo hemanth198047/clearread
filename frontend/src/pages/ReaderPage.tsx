@@ -55,6 +55,8 @@ export function ReaderPage() {
   const [meta, setMeta] = useState<DocMeta | null>(null);
   const [doc, setDoc] = useState<ClearDoc | null>(null);
   const [originalText, setOriginalText] = useState<string | null>(null);
+  const [originalError, setOriginalError] = useState<string | null>(null);
+  const [originalLoading, setOriginalLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [statusNote, setStatusNote] = useState<string | null>(null);
   const [diagnostics, setDiagnostics] = useState<Diagnostics | null>(null);
@@ -82,10 +84,19 @@ export function ReaderPage() {
   async function loadReady(docId: string, accessToken: string) {
     const cleardoc = (await apiFetch(`/v1/documents/${docId}/cleardoc`, accessToken)) as ClearDoc;
     setDoc(cleardoc);
-    const buf = (await apiFetch(`/v1/documents/${docId}/original`, accessToken)) as ArrayBuffer;
-    setOriginalText(new TextDecoder().decode(buf));
     setError(null);
     setStatusNote(null);
+    setOriginalLoading(true);
+    setOriginalError(null);
+    try {
+      const buf = (await apiFetch(`/v1/documents/${docId}/original`, accessToken)) as ArrayBuffer;
+      setOriginalText(new TextDecoder("utf-8", { fatal: false }).decode(buf));
+    } catch (err) {
+      setOriginalText(null);
+      setOriginalError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setOriginalLoading(false);
+    }
   }
 
   useEffect(() => {
@@ -380,6 +391,8 @@ export function ReaderPage() {
         meta={meta}
         doc={doc}
         originalText={originalText}
+        originalError={originalError}
+        originalLoading={originalLoading}
         initialFindQuery={initialFind}
         onDownloadOriginal={async () => {
           if (!token) return;

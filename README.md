@@ -1,6 +1,6 @@
-# ClearRead ![version](https://img.shields.io/badge/version-v1.0.6-1a5f4a)
+# ClearRead ![version](https://img.shields.io/badge/version-v1.0.8-1a5f4a)
 
-**ClearRead v1.0.6** (temporary product name; branding is configurable).  
+**ClearRead v1.0.8** (temporary product name; branding is configurable).  
 Turns Markdown and plain text into structured, accessible reading experiences — **preserves originals**, **no AI required** for the core path, and **honest format support** via a capability registry.
 
 ## Prerequisites
