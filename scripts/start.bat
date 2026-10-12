@@ -25,6 +25,7 @@ if not defined CLEARREAD_CORS_ORIGINS set CLEARREAD_CORS_ORIGINS=http://localhos
 if not defined CLEARREAD_API_ORIGIN set CLEARREAD_API_ORIGIN=http://localhost:%CLEARREAD_API_PORT%
 if not defined CLEARREAD_OIDC_ORIGIN set CLEARREAD_OIDC_ORIGIN=http://localhost:%CLEARREAD_KEYCLOAK_PORT%
 if not defined CLEARREAD_HEALTH_ATTEMPTS set CLEARREAD_HEALTH_ATTEMPTS=45
+if not defined CLEARREAD_KEYCLOAK_WAIT_SECONDS set CLEARREAD_KEYCLOAK_WAIT_SECONDS=240
 
 set COMPOSE_ENVFILE=
 if exist "%ROOT%\.env" set COMPOSE_ENVFILE=--env-file "%ROOT%\.env"
@@ -71,6 +72,48 @@ if errorlevel 1 (
   echo Override ports via .env — see .env.example
   exit /b 1
 )
+
+echo Waiting for Keycloak ^(http://localhost:%CLEARREAD_KEYCLOAK_PORT%/realms/clearread^)...
+echo   First boot can take 1-3 minutes ^(Docker Desktop^); warm starts are usually under 30s.
+echo   Timeout: %CLEARREAD_KEYCLOAK_WAIT_SECONDS%s ^(override CLEARREAD_KEYCLOAK_WAIT_SECONDS^).
+set /a kc_elapsed=0
+:wait_kc
+curl -sf "http://localhost:%CLEARREAD_KEYCLOAK_PORT%/realms/clearread/.well-known/openid-configuration" >nul 2>&1
+if not errorlevel 1 (
+  echo Keycloak is ready ^(%kc_elapsed%s^).
+  goto kc_ready
+)
+docker compose -p %PROJECT% -f "%COMPOSE_FILE%" %COMPOSE_ENVFILE% ps -a keycloak 2>nul | findstr /I "Exit Dead" >nul
+if not errorlevel 1 (
+  echo ERROR: Keycloak container is not running — stopping wait early.
+  docker compose -p %PROJECT% -f "%COMPOSE_FILE%" %COMPOSE_ENVFILE% ps -a keycloak
+  docker compose -p %PROJECT% -f "%COMPOSE_FILE%" %COMPOSE_ENVFILE% logs --tail=60 keycloak
+  goto kc_failed
+)
+set /a rem=%kc_elapsed% %% 15
+if %rem%==0 (
+  set /a kc_left=%CLEARREAD_KEYCLOAK_WAIT_SECONDS%-%kc_elapsed%
+  echo   ... Keycloak still starting ^(%kc_elapsed%s elapsed, !kc_left!s left^)
+)
+set /a kc_elapsed+=5
+if %kc_elapsed% GEQ %CLEARREAD_KEYCLOAK_WAIT_SECONDS% goto kc_failed
+timeout /t 5 /nobreak >nul
+goto wait_kc
+
+:kc_failed
+echo.
+echo ERROR: Keycloak did not become ready within %CLEARREAD_KEYCLOAK_WAIT_SECONDS%s.
+echo   Inspect: docker logs clearread-keycloak-1
+echo   Recreate: docker compose -p %PROJECT% -f "%COMPOSE_FILE%" up -d --force-recreate keycloak
+echo   Wipe realm volume after realm JSON changes:
+echo     docker compose -p %PROJECT% -f "%COMPOSE_FILE%" stop keycloak
+echo     docker volume rm %PROJECT%_clearread_keycloak
+echo   Give Docker Desktop more RAM ^(4GB+ recommended^).
+echo   See docs\ops\keycloak-startup.md
+docker compose -p %PROJECT% -f "%COMPOSE_FILE%" %COMPOSE_ENVFILE% logs --tail=80 keycloak
+exit /b 1
+
+:kc_ready
 docker compose -p %PROJECT% -f "%COMPOSE_FILE%" %COMPOSE_ENVFILE% up -d api web >"%ROOT%\.clearread-run\compose-up.log" 2>&1
 if errorlevel 1 (
   type "%ROOT%\.clearread-run\compose-up.log"
