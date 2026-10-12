@@ -584,6 +584,30 @@
   margin: 0 0 0.35rem;
 }
 
+.reader-warnings {
+  font-family: var(--reader-font-ui);
+  font-size: 0.88rem;
+  color: var(--reader-muted);
+  border-left: 3px solid var(--reader-accent, #2563eb);
+  padding: 0.35rem 0 0.35rem 0.85rem;
+  margin: 0 0 1.25rem;
+}
+
+.reader-warnings ul {
+  margin: 0.35rem 0 0;
+  padding-left: 1.1rem;
+}
+
+.reader-warnings li {
+  margin: 0.2rem 0;
+}
+
+.reader-warnings code {
+  font-family: var(--reader-font-mono);
+  font-size: 0.8em;
+  margin-right: 0.35rem;
+}
+
 @media print {
   .topbar,
   .org-actions,

@@ -126,7 +126,7 @@ public final class MermaidTextFallback {
 
     private static boolean looksLikeSyntax(String s) {
         String lower = s.toLowerCase(Locale.ROOT);
-        return lower.equals("flowchart") || lower.equals("sequenceDiagram".toLowerCase(Locale.ROOT))
+        return lower.equals("flowchart") || lower.equals("sequencediagram")
                 || lower.equals("graph") || lower.equals("td") || lower.equals("lr")
                 || lower.startsWith("click ") || lower.contains("callback");
     }
