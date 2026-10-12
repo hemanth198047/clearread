@@ -1,6 +1,6 @@
-# ClearRead ![version](https://img.shields.io/badge/version-v1.0.1-1a5f4a)
+# ClearRead ![version](https://img.shields.io/badge/version-v1.0.2-1a5f4a)
 
-**ClearRead v1.0.1** (temporary product name; branding is configurable).  
+**ClearRead v1.0.2** (temporary product name; branding is configurable).  
 Turns Markdown and plain text into structured, accessible reading experiences — **preserves originals**, **no AI required** for the core path, and **honest format support** via a capability registry.
 
 ## Prerequisites
@@ -19,7 +19,7 @@ Turns Markdown and plain text into structured, accessible reading experiences �
 scripts\start.bat
 ```
 
-Build images only (useful when debugging Dockerfile exit 127):
+Build images only (useful when debugging Dockerfile / Gradle download issues):
 
 ```bash
 docker compose -p clearread -f infra/compose.yaml build api web
@@ -27,7 +27,7 @@ docker compose -p clearread -f infra/compose.yaml up -d
 curl -sf http://localhost:8080/v1/health
 ```
 
-If `api` build fails with **exit 127** on `./gradlew`, the wrapper was not executable or had CRLF endings. The API Dockerfile now `chmod +x` + strips CR; `.gitattributes` forces LF on `gradlew`.
+If `api` build times out downloading `gradle-*-bin.zip`, pull `gradle:8.14.3-jdk21` and retry, or build on the host with `./gradlew bootJar` — see [docs/ops/compose-build-fix.md](docs/ops/compose-build-fix.md). Exit **127** on `./gradlew` is usually a missing execute bit or CRLF; `.gitattributes` forces LF on `gradlew`.
 
 Then open **http://localhost:5173**
 
@@ -129,7 +129,7 @@ Windows Postgres: `scripts\backup.bat`. Object sync: Git Bash `bash scripts/back
 
 ## Release status
 
-**v1.0.1** — patch on **v1.0.0 FINAL** (port-conflict fail-fast + configurable host ports). Phases 1–6 + acceptance + post-acceptance hardening. See [CHANGELOG.md](CHANGELOG.md).
+**v1.0.2** — patch on **v1.0.0 FINAL** (API Docker Gradle base image / download timeout; v1.0.1 port-conflict fail-fast). Phases 1–6 + acceptance + post-acceptance hardening. See [CHANGELOG.md](CHANGELOG.md).
 
 | Phase | Docs |
 | --- | --- |

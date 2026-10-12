@@ -80,6 +80,10 @@ Some environments break container-to-container networking after a manual `docker
 3. Windows `scripts\start.bat` does **not** include host fallback; use Git Bash/WSL `bash scripts/start.sh` when the bridge is broken.
 4. Smoke: `./scripts/check.sh` (five named checks).
 
+### Gradle distribution download timeout
+
+`SocketTimeoutException` / `timeout (10000ms)` while downloading `gradle-*-bin.zip` during `docker compose build api`. Prefer **v1.0.2+** (`gradle:8.14.3-jdk21` base). Workarounds: retry, `docker pull gradle:8.14.3-jdk21`, or host `./gradlew bootJar` / `start.sh` fallback. See [compose-build-fix.md](../ops/compose-build-fix.md).
+
 ### Image build exit 127 (`./gradlew`)
 
 Usually `gradlew` not executable or CRLF line endings. See [compose-build-fix.md](../ops/compose-build-fix.md). `start.sh` / `start.bat` print the same hints on build failure.

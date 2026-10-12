@@ -20,7 +20,7 @@ Open http://localhost:5173 — API http://localhost:8080.
 
 Copy [`.env.example`](../../.env.example) → `.env` to remap published ports when the defaults are busy. Start scripts export matching `VITE_API_BASE_URL` / `CLEARREAD_CORS_ORIGINS` so the SPA and CORS stay aligned.
 
-Scripts matrix: [ops/scripts.md](../ops/scripts.md). Compose build exit 127: [ops/compose-build-fix.md](../ops/compose-build-fix.md). Port conflicts: [troubleshooting](./troubleshooting.md).
+Scripts matrix: [ops/scripts.md](../ops/scripts.md). Compose build (exit 127 / Gradle download timeout): [ops/compose-build-fix.md](../ops/compose-build-fix.md). Port conflicts: [troubleshooting](./troubleshooting.md).
 
 ## Hybrid (deps in Compose, API/web on host)
 
@@ -45,5 +45,5 @@ Primary knobs live in `backend/src/main/resources/application.yml` and Compose `
 
 ## OpenAPI
 
-- Spec: `/v3/api-docs` (version **1.0.1**)
+- Spec: `/v3/api-docs` (version **1.0.2**)
 - Swagger UI: `/swagger-ui.html`
