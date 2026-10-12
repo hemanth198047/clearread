@@ -5,6 +5,17 @@ All notable changes to ClearRead are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.2] — 2026-10-12
+
+### Fixed
+
+- API Docker build no longer downloads the Gradle distribution zip during `docker build` (avoids Windows / flaky-network `SocketTimeoutException` / `timeout (10000ms)` on `gradle-8.14.3-bin.zip`). Build stage uses official **`gradle:8.14.3-jdk21`** with BuildKit cache mounts on `/home/gradle/.gradle`.
+
+### Changed
+
+- Wrapper `networkTimeout` raised to **120000** ms; `backend/gradle.properties` sets Gradle HTTP connection/socket timeouts for host builds.
+- Docs + `start.sh` / `start.bat` error hints cover Gradle download timeout (not only exit 127).
+
 ## [1.0.1] — 2026-10-12
 
 ### Fixed

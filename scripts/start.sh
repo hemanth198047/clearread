@@ -142,9 +142,12 @@ echo "Building ClearRead images (project=$PROJECT)..."
 echo "  API host port=$CLEARREAD_API_PORT  Web host port=$CLEARREAD_WEB_PORT  VITE_API_BASE_URL=$VITE_API_BASE_URL"
 if ! "${COMPOSE[@]}" build api web; then
   echo "ERROR: docker compose build failed." >&2
-  echo "  API Dockerfile runs: chmod +x gradlew && ./gradlew bootJar" >&2
+  echo "  API image builds with gradle:8.14.3-jdk21 (no distribution zip download)." >&2
+  echo "  If you saw SocketTimeoutException / gradle-*-bin.zip timeout:" >&2
+  echo "    docker pull gradle:8.14.3-jdk21 && docker compose -p $PROJECT -f \"$COMPOSE_FILE\" build api" >&2
+  echo "    or host: (cd backend && ./gradlew bootJar --no-daemon)" >&2
   echo "  Common exit 127 cause: gradlew not executable / CRLF line endings." >&2
-  echo "  Try: (cd backend && chmod +x gradlew && ./gradlew bootJar --no-daemon)" >&2
+  echo "  See docs/ops/compose-build-fix.md" >&2
   exit 1
 fi
 

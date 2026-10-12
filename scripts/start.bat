@@ -45,9 +45,16 @@ echo   API host port=%CLEARREAD_API_PORT%  Web host port=%CLEARREAD_WEB_PORT%  V
 docker compose -p %PROJECT% -f "%COMPOSE_FILE%" %COMPOSE_ENVFILE% build api web
 if errorlevel 1 (
   echo ERROR: docker compose build failed.
-  echo If api failed with exit 127 on ./gradlew, ensure backend\gradlew has LF line endings
-  echo and gradle\wrapper\gradle-wrapper.jar is present. See docs\ops\compose-build-fix.md
-  echo Prefer Git Bash or WSL: bash scripts/start.sh
+  echo.
+  echo Gradle DOWNLOAD TIMEOUT ^(SocketTimeoutException / timeout on gradle-*-bin.zip^):
+  echo   This is NOT exit 127. Retry after: docker pull gradle:8.14.3-jdk21
+  echo   Then: docker compose -p %PROJECT% -f "%COMPOSE_FILE%" build api
+  echo   Or host JAR: cd backend ^&^& gradlew.bat bootJar --no-daemon
+  echo   Or Git Bash hybrid: bash scripts/start.sh
+  echo.
+  echo Exit 127 on ./gradlew ^(separate issue^): missing +x / CRLF line endings.
+  echo   Ensure backend\gradlew is LF and gradle\wrapper\gradle-wrapper.jar is present.
+  echo See docs\ops\compose-build-fix.md
   exit /b 1
 )
 

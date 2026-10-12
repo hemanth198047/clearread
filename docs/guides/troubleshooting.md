@@ -1,4 +1,4 @@
-# Troubleshooting (ClearRead v1.0)
+# Troubleshooting (ClearRead v1.0.2)
 
 ## Port already allocated / start hangs on API health
 
@@ -56,6 +56,12 @@ Published ports work from the host, but `api` cannot reach `db` / Keycloak / obj
 2. Prefer `./scripts/start.sh` — waits for health (with timeout), then **falls back** to host `bootRun` + Vite.
 3. Windows `scripts\start.bat` has **no** host fallback — use `bash scripts/start.sh`.
 4. Smoke: `./scripts/check.sh` (reads the same `.env` ports).
+
+## Gradle distribution download timeout (`SocketTimeoutException`)
+
+`docker compose build api` times out downloading `gradle-8.14.3-bin.zip` (web image may still succeed). **v1.0.2+** builds the API image from `gradle:8.14.3-jdk21` so the distribution is not fetched during build. See [ops/compose-build-fix.md](../ops/compose-build-fix.md).
+
+**Unblock now:** retry; or `docker pull gradle:8.14.3-jdk21` then rebuild; or host `cd backend && ./gradlew bootJar` / `./scripts/start.sh` hybrid fallback. Host timeouts: `GRADLE_OPTS="-Dorg.gradle.internal.http.connectionTimeout=120000 -Dorg.gradle.internal.http.socketTimeout=120000"`.
 
 ## Image build exit 127 (`./gradlew`)
 
