@@ -82,7 +82,9 @@ Some environments break container-to-container networking after a manual `docker
 
 ### Gradle distribution download timeout
 
-`SocketTimeoutException` / `timeout (10000ms)` while downloading `gradle-*-bin.zip` during `docker compose build api`. Prefer **v1.0.2+** (`gradle:8.14.3-jdk21` base). Workarounds: retry, `docker pull gradle:8.14.3-jdk21`, or host `./gradlew bootJar` / `start.sh` fallback. See [compose-build-fix.md](../ops/compose-build-fix.md).
+`SocketTimeoutException` / `timeout (10000ms)` while downloading `gradle-*-bin.zip` during `docker compose build api`. Prefer **v1.0.2+** (Gradle from `gradle:8.14.3-jdk21`). Workarounds: retry, `docker pull gradle:8.14.3-jdk21`, or host `./gradlew bootJar` / `start.sh` fallback.
+
+`Failed to load native library 'libnative-platform.so'` / `Could not initialize native services`: prefer **v1.0.3+** (Temurin + `/opt/gradle` copy; cache only `caches/` + `wrapper/`). Workarounds: `docker builder prune -f` then `docker compose … build --no-cache api`. See [compose-build-fix.md](../ops/compose-build-fix.md).
 
 ### Image build exit 127 (`./gradlew`)
 

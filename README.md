@@ -1,6 +1,6 @@
-# ClearRead ![version](https://img.shields.io/badge/version-v1.0.2-1a5f4a)
+# ClearRead ![version](https://img.shields.io/badge/version-v1.0.3-1a5f4a)
 
-**ClearRead v1.0.2** (temporary product name; branding is configurable).  
+**ClearRead v1.0.3** (temporary product name; branding is configurable).  
 Turns Markdown and plain text into structured, accessible reading experiences — **preserves originals**, **no AI required** for the core path, and **honest format support** via a capability registry.
 
 ## Prerequisites
@@ -129,7 +129,7 @@ Windows Postgres: `scripts\backup.bat`. Object sync: Git Bash `bash scripts/back
 
 ## Release status
 
-**v1.0.2** — patch on **v1.0.0 FINAL** (API Docker Gradle base image / download timeout; v1.0.1 port-conflict fail-fast). Phases 1–6 + acceptance + post-acceptance hardening. See [CHANGELOG.md](CHANGELOG.md).
+**v1.0.3** — patch on **v1.0.0 FINAL** (API Docker Gradle native-platform / BuildKit cache fix; v1.0.2 Gradle base image; v1.0.1 port-conflict fail-fast). Phases 1–6 + acceptance + post-acceptance hardening. See [CHANGELOG.md](CHANGELOG.md).
 
 | Phase | Docs |
 | --- | --- |
