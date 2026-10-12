@@ -1,4 +1,6 @@
-# ClearRead Operator Runbook (Phase 6 freeze)
+# ClearRead Operator Runbook (v1.0)
+
+Companion guides: [user](../guides/user.md) · [admin](../guides/admin.md) · [deployment](../guides/deployment.md) · [backup-restore](../guides/backup-restore.md) · [troubleshooting](../guides/troubleshooting.md) · [format-support](../format-support.md) · [security](../guides/security.md) · [scripts matrix](../ops/scripts.md)
 
 ## Services
 
@@ -29,17 +31,19 @@ UI and `/v1/capabilities` must only claim formats registered in `capabilities/re
 
 ```bash
 ./scripts/backup.sh [/path/out]
+./scripts/backup.sh --with-objects          # Postgres + aws s3 sync tenants/*
 ./scripts/restore.sh /path/to/backup-dir
+./scripts/restore.sh --with-objects /path/to/backup-dir
 ```
 
-On Windows (cmd), beginner-friendly wrappers call Compose `pg_dump` / `pg_restore`:
+On Windows (cmd), beginner-friendly wrappers call Compose `pg_dump` / `pg_restore` (Postgres only):
 
 ```bat
 scripts\backup.bat
 scripts\restore.bat path\to\backup-dir
 ```
 
-Prefer Git Bash / WSL for the full bash helpers (`CLEARREAD_DB_URL` JDBC normalization, MANIFEST notes). Also snapshot object-store `tenants/*` prefixes for the same window. After restore: `./scripts/check.sh` (or `scripts\check.bat`) and confirm `/v1/health`.
+Prefer Git Bash / WSL for the full bash helpers (`CLEARREAD_DB_URL` JDBC normalization, `--with-objects`, MANIFEST notes). Details: [guides/backup-restore.md](../guides/backup-restore.md). After restore: `./scripts/check.sh` (or `scripts\check.bat`) and confirm `/v1/health`.
 
 ## Image pinning (production)
 

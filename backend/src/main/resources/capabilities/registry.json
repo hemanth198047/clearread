@@ -1,5 +1,5 @@
 {
-  "registryVersion": "2026.10.4",
+  "registryVersion": "2026.10.5",
   "formats": [
     {
       "formatId": "markdown",
@@ -174,7 +174,7 @@
         "headings": "unsupported",
         "includes": "unsupported"
       },
-      "notes": "Registered for honesty only — no AsciiDoc parser ships in this release. Convert to Markdown or paste plain text.",
+      "notes": "v1.0 final non-goal: honesty stub only (detect→415). No AsciiDoc parser ships — Asciidoctor include/passthrough surface is out of scope. Convert to Markdown or paste plain text.",
       "adapterId": null,
       "adapterVersion": null
     },
@@ -188,7 +188,7 @@
         "headings": "unsupported",
         "directives": "unsupported"
       },
-      "notes": "Registered for honesty only — no RST parser ships in this release. Convert to Markdown or paste plain text.",
+      "notes": "v1.0 final non-goal: honesty stub only (detect→415). No RST parser ships — no mature pure-JVM path without a Python/docutils subprocess. Convert to Markdown or paste plain text.",
       "adapterId": null,
       "adapterVersion": null
     }
