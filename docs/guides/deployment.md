@@ -10,15 +10,17 @@
 
 Open http://localhost:5173 — API http://localhost:8080.
 
-| Service | Port | Notes |
-| --- | --- | --- |
-| Web | 5173 | SPA (nginx in Compose image) |
-| API | 8080 | Spring Boot `/v1` |
-| Keycloak | 8081 | Realm `clearread` |
-| Postgres | 5432 | Flyway on boot |
-| Object store | 9000 | LocalStack S3 API |
+| Service | Default host port | Env override | Notes |
+| --- | --- | --- | --- |
+| Web | 5173 | `CLEARREAD_WEB_PORT` | SPA (nginx in Compose image) |
+| API | 8080 | `CLEARREAD_API_PORT` | Spring Boot `/v1` |
+| Keycloak | 8081 | `CLEARREAD_KEYCLOAK_PORT` | Realm `clearread` |
+| Postgres | 5432 | `CLEARREAD_DB_PORT` | Flyway on boot |
+| Object store | 9000 | `CLEARREAD_S3_PORT` | LocalStack S3 API |
 
-Scripts matrix: [ops/scripts.md](../ops/scripts.md). Compose build exit 127: [ops/compose-build-fix.md](../ops/compose-build-fix.md).
+Copy [`.env.example`](../../.env.example) → `.env` to remap published ports when the defaults are busy. Start scripts export matching `VITE_API_BASE_URL` / `CLEARREAD_CORS_ORIGINS` so the SPA and CORS stay aligned.
+
+Scripts matrix: [ops/scripts.md](../ops/scripts.md). Compose build exit 127: [ops/compose-build-fix.md](../ops/compose-build-fix.md). Port conflicts: [troubleshooting](./troubleshooting.md).
 
 ## Hybrid (deps in Compose, API/web on host)
 
@@ -39,9 +41,9 @@ cd frontend && npm run dev
 
 ## Configuration
 
-Primary knobs live in `backend/src/main/resources/application.yml` and Compose `environment:` for the `api` service (`CLEARREAD_*`). Frontend: `frontend/.env.example` (`VITE_API_BASE_URL`, OIDC authority/client).
+Primary knobs live in `backend/src/main/resources/application.yml` and Compose `environment:` for the `api` service (`CLEARREAD_*`). Host ports + derived URLs: repo-root [`.env.example`](../../.env.example). Frontend: `frontend/.env.example` (`VITE_API_BASE_URL`, OIDC authority/client).
 
 ## OpenAPI
 
-- Spec: `/v3/api-docs` (version **1.0.0**)
+- Spec: `/v3/api-docs` (version **1.0.1**)
 - Swagger UI: `/swagger-ui.html`

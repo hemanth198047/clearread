@@ -5,6 +5,19 @@ All notable changes to ClearRead are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] — 2026-10-12
+
+### Fixed
+
+- Start scripts **fail fast** when published Compose ports are already allocated (no infinite “Waiting for API health…” hang).
+- Health wait aborts early if the `api` container exits; timeout prints a clear error and points at `./scripts/stop.sh`.
+
+### Added
+
+- Configurable host ports via repo-root `.env` / `.env.example`: `CLEARREAD_API_PORT`, `CLEARREAD_WEB_PORT`, `CLEARREAD_KEYCLOAK_PORT`, `CLEARREAD_DB_PORT`, `CLEARREAD_S3_PORT`.
+- Start scripts derive `VITE_API_BASE_URL`, CORS origins, and OIDC issuer URLs from those ports; web image CSP `connect-src` follows API/OIDC origins at build time.
+- Troubleshooting + deployment docs for port conflicts (Linux `ss`/`lsof`, Windows `netstat` / `Get-NetTCPConnection`).
+
 ## [1.0.0] — 2026-10-12
 
 ### Added
