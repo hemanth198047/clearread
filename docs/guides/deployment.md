@@ -45,5 +45,5 @@ Primary knobs live in `backend/src/main/resources/application.yml` and Compose `
 
 ## OpenAPI
 
-- Spec: `/v3/api-docs` (version **1.0.2**)
+- Spec: `/v3/api-docs` (version **1.0.3**)
 - Swagger UI: `/swagger-ui.html`

@@ -46,6 +46,12 @@ docker compose -p %PROJECT% -f "%COMPOSE_FILE%" %COMPOSE_ENVFILE% build api web
 if errorlevel 1 (
   echo ERROR: docker compose build failed.
   echo.
+  echo libnative-platform.so FAILED TO LOAD ^(Could not initialize native services^):
+  echo   Stale/corrupt BuildKit Gradle cache on Docker Desktop — not a zip timeout.
+  echo   git pull
+  echo   docker builder prune -f
+  echo   docker compose -p %PROJECT% -f "%COMPOSE_FILE%" build --no-cache api
+  echo.
   echo Gradle DOWNLOAD TIMEOUT ^(SocketTimeoutException / timeout on gradle-*-bin.zip^):
   echo   This is NOT exit 127. Retry after: docker pull gradle:8.14.3-jdk21
   echo   Then: docker compose -p %PROJECT% -f "%COMPOSE_FILE%" build api

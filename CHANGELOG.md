@@ -5,11 +5,22 @@ All notable changes to ClearRead are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.3] — 2026-10-12
+
+### Fixed
+
+- API Docker build no longer mounts BuildKit cache over the entire Gradle user home (avoids Windows Docker Desktop `Failed to load native library 'libnative-platform.so'` / `Could not initialize native services`). Build stage is **`eclipse-temurin:21-jdk`** with Gradle copied from **`gradle:8.14.3-jdk21`** (`/opt/gradle`); caches only `caches/` + `wrapper/`.
+
+### Changed
+
+- `start.sh` / `start.bat` distinguish `libnative-platform.so` failures (suggest `docker builder prune` + `--no-cache`) from Gradle zip download timeouts.
+- Docs: `docs/ops/compose-build-fix.md` covers the native-platform cache issue.
+
 ## [1.0.2] — 2026-10-12
 
 ### Fixed
 
-- API Docker build no longer downloads the Gradle distribution zip during `docker build` (avoids Windows / flaky-network `SocketTimeoutException` / `timeout (10000ms)` on `gradle-8.14.3-bin.zip`). Build stage uses official **`gradle:8.14.3-jdk21`** with BuildKit cache mounts on `/home/gradle/.gradle`.
+- API Docker build no longer downloads the Gradle distribution zip during `docker build` (avoids Windows / flaky-network `SocketTimeoutException` / `timeout (10000ms)` on `gradle-8.14.3-bin.zip`). Build stage used official **`gradle:8.14.3-jdk21`** (refined in **v1.0.3** to Temurin + `/opt/gradle` copy and narrower cache mounts).
 
 ### Changed
 
