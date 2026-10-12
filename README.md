@@ -1,6 +1,6 @@
-# ClearRead ![version](https://img.shields.io/badge/version-v1.0.5-1a5f4a)
+# ClearRead ![version](https://img.shields.io/badge/version-v1.0.6-1a5f4a)
 
-**ClearRead v1.0.5** (temporary product name; branding is configurable).  
+**ClearRead v1.0.6** (temporary product name; branding is configurable).  
 Turns Markdown and plain text into structured, accessible reading experiences — **preserves originals**, **no AI required** for the core path, and **honest format support** via a capability registry.
 
 ## Prerequisites
@@ -36,7 +36,22 @@ Then open **http://localhost:5173**
 | Web | http://localhost:5173 | SPA (`CLEARREAD_WEB_PORT`) |
 | API | http://localhost:8080 | REST `/v1`, health `/v1/health`, OpenAPI `/v3/api-docs` (`CLEARREAD_API_PORT`) |
 | Keycloak | http://localhost:8081 | Admin `admin` / `admin` (`CLEARREAD_KEYCLOAK_PORT`) |
-| S3 (LocalStack) | http://localhost:9000 | Access key `test` / `test` (`CLEARREAD_S3_PORT`) |
+| Keycloak mgmt | http://localhost:9002/health/ready | Management health (`CLEARREAD_KEYCLOAK_MGMT_PORT`) |
+| Postgres | localhost:5433 | Host **5433** by default (`CLEARREAD_DB_PORT`; avoids Windows Postgres on 5432) |
+| S3 (LocalStack) | http://localhost:9000 | Compose service name `minio`; access key `test` / `test` (`CLEARREAD_S3_PORT`) |
+
+### Deps not starting? (Windows)
+
+If `db` / LocalStack / Keycloak never come up:
+
+```bat
+scripts\doctor.bat
+scripts\stop.bat
+docker volume rm clearread_clearread_pg clearread_clearread_minio clearread_clearread_keycloak
+scripts\start-deps.bat
+```
+
+Details: [docs/ops/compose-deps-fix.md](docs/ops/compose-deps-fix.md).
 
 ### Port conflicts
 
@@ -44,7 +59,7 @@ If Compose reports `port is already allocated` (often **8080**), start scripts *
 
 `scripts/start.sh` starts the Compose stack and, if the API container cannot become healthy, automatically falls back to a host-run API + Vite against the published dependency ports. Health waits **time out** with a clear error (no infinite hang). `scripts/stop.sh` still only stops the ClearRead Compose project and ClearRead-tracked host PIDs.
 
-Windows: `scripts\start.bat` / `stop.bat` / `check.bat` / `backup.bat` / `restore.bat`. The `.bat` start path does **not** include host fallback — if Compose API never becomes healthy (Docker bridge issues), use Git Bash or WSL with `bash scripts/start.sh`. Full matrix: [docs/ops/scripts.md](docs/ops/scripts.md).
+Windows: `scripts\start.bat` / `start-deps.bat` / `doctor.bat` / `stop.bat` / `check.bat` / `backup.bat` / `restore.bat`. The `.bat` start path does **not** include host fallback — if Compose API never becomes healthy (Docker bridge issues), use Git Bash or WSL with `bash scripts/start.sh`. Full matrix: [docs/ops/scripts.md](docs/ops/scripts.md).
 
 ### Access (local Keycloak)
 
@@ -93,6 +108,7 @@ Stop scripts tear down only the Compose project named `clearread` (and optional 
 | Deployment | [docs/guides/deployment.md](docs/guides/deployment.md) |
 | Backup / restore | [docs/guides/backup-restore.md](docs/guides/backup-restore.md) |
 | Troubleshooting | [docs/guides/troubleshooting.md](docs/guides/troubleshooting.md) |
+| Compose deps fix | [docs/ops/compose-deps-fix.md](docs/ops/compose-deps-fix.md) |
 | Keycloak startup | [docs/ops/keycloak-startup.md](docs/ops/keycloak-startup.md) |
 | Format support | [docs/format-support.md](docs/format-support.md) |
 | Security | [docs/guides/security.md](docs/guides/security.md) |
@@ -117,9 +133,10 @@ Stop scripts tear down only the Compose project named `clearread` (and optional 
 
 ```bash
 ./scripts/start-deps.sh
+# Windows: scripts\start-deps.bat
 ```
 
-2. API: `cd backend && ./gradlew bootRun`
+2. API: `cd backend && ./gradlew bootRun` (uses host Postgres **:5433** by default)
 3. Web: `cd frontend && npm install && npm run dev`
 
 Environment defaults are in `backend/src/main/resources/application.yml` and Vite `VITE_*` vars (see `frontend/.env.example`).
@@ -148,7 +165,7 @@ Windows Postgres: `scripts\backup.bat`. Object sync: Git Bash `bash scripts/back
 
 ## Release status
 
-**v1.0.5** — patch on **v1.0.0 FINAL** (Keycloak startup DX; prior: v1.0.4 demo accounts/signup, v1.0.3 Gradle native-platform cache, v1.0.2 Gradle image, v1.0.1 port fail-fast). Phases 1–6 + acceptance + post-acceptance hardening. See [CHANGELOG.md](CHANGELOG.md).
+**v1.0.6** — patch on **v1.0.0 FINAL** (Compose deps start on Windows: Postgres **5433**, Keycloak health/bash, LocalStack doctor; prior: v1.0.5 Keycloak DX, v1.0.4 demo accounts/signup, v1.0.3 Gradle native-platform). Phases 1–6 + acceptance + post-acceptance hardening. See [CHANGELOG.md](CHANGELOG.md).
 
 | Phase | Docs |
 | --- | --- |

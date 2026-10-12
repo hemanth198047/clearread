@@ -5,7 +5,8 @@ spring:
   application:
     name: clearread-api
   datasource:
-    url: ${CLEARREAD_DB_URL:jdbc:postgresql://localhost:5432/clearread}
+    # Host default 5433 matches Compose CLEARREAD_DB_PORT (avoids local Postgres on 5432).
+    url: ${CLEARREAD_DB_URL:jdbc:postgresql://localhost:5433/clearread}
     username: ${CLEARREAD_DB_USER:clearread}
     password: ${CLEARREAD_DB_PASSWORD:clearread}
   flyway:

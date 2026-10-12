@@ -18,7 +18,7 @@ public class OpenApiConfig {
                                 "ClearRead v1.0 — turn text-based files into structured reading experiences. "
                                         + "Capability registry (`GET /v1/capabilities`) is the source of truth for format support."
                         )
-                        .version("1.0.5")
+                        .version("1.0.6")
                         .license(new License().name("Apache-2.0")));
     }
 }

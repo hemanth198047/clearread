@@ -15,18 +15,19 @@ Open http://localhost:5173 — API http://localhost:8080.
 | Web | 5173 | `CLEARREAD_WEB_PORT` | SPA (nginx in Compose image) |
 | API | 8080 | `CLEARREAD_API_PORT` | Spring Boot `/v1` |
 | Keycloak | 8081 | `CLEARREAD_KEYCLOAK_PORT` | Realm `clearread` |
-| Postgres | 5432 | `CLEARREAD_DB_PORT` | Flyway on boot |
-| Object store | 9000 | `CLEARREAD_S3_PORT` | LocalStack S3 API |
+| Keycloak mgmt | 9002 | `CLEARREAD_KEYCLOAK_MGMT_PORT` | `/health/ready` |
+| Postgres | **5433** | `CLEARREAD_DB_PORT` | Flyway on boot (host; container 5432) |
+| Object store | 9000 | `CLEARREAD_S3_PORT` | LocalStack S3 (Compose service `minio`) |
 
 Copy [`.env.example`](../../.env.example) → `.env` to remap published ports when the defaults are busy. Start scripts export matching `VITE_API_BASE_URL` / `CLEARREAD_CORS_ORIGINS` so the SPA and CORS stay aligned.
 
-Scripts matrix: [ops/scripts.md](../ops/scripts.md). Compose build (exit 127 / Gradle download timeout): [ops/compose-build-fix.md](../ops/compose-build-fix.md). Port conflicts: [troubleshooting](./troubleshooting.md).
+Scripts matrix: [ops/scripts.md](../ops/scripts.md). Deps not starting: [ops/compose-deps-fix.md](../ops/compose-deps-fix.md). Compose build (exit 127 / Gradle download timeout): [ops/compose-build-fix.md](../ops/compose-build-fix.md). Port conflicts: [troubleshooting](./troubleshooting.md).
 
 ## Hybrid (deps in Compose, API/web on host)
 
 ```bash
-./scripts/start-deps.sh
-cd backend && ./gradlew bootRun
+./scripts/start-deps.sh          # or scripts\start-deps.bat
+cd backend && ./gradlew bootRun  # DB host default :5433
 cd frontend && npm run dev
 ```
 
@@ -50,5 +51,5 @@ Primary knobs live in `backend/src/main/resources/application.yml` and Compose `
 
 ## OpenAPI
 
-- Spec: `/v3/api-docs` (version **1.0.5**)
+- Spec: `/v3/api-docs` (version **1.0.6**)
 - Swagger UI: `/swagger-ui.html`
