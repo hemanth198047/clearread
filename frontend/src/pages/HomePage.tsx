@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiFetch } from "../api/client";
 import { useAuth } from "../auth/AuthProvider";
-import { useBranding } from "../branding/BrandingProvider";
+import { DEMO_ACCOUNTS, useBranding } from "../branding/BrandingProvider";
 
 type DocMeta = {
   id: string;
@@ -182,9 +182,40 @@ export function HomePage() {
 
       <section className="panel">
         {!signedIn ? (
-          <p className="muted">
-            Sign in to paste, upload, or fetch a document. Local demo user: <code>demo</code> / <code>demo</code>.
-          </p>
+          <div className="access-panel" data-testid="access-panel">
+            <h2>Get access</h2>
+            <p>
+              <strong>Sign in</strong> with an existing account, or <strong>Create account</strong> to register via the
+              local IdP (Keycloak self-registration). After signup you join the default Demo Workspace automatically.
+            </p>
+            <div className="access-actions">
+              <button type="button" onClick={() => void auth.login()}>
+                Sign in
+              </button>
+              <button type="button" className="secondary" onClick={() => void auth.register()} data-testid="create-account">
+                Create account
+              </button>
+            </div>
+            {branding.showDemoAccounts ? (
+              <div className="demo-accounts" data-testid="demo-accounts">
+                <h3>Demo accounts</h3>
+                <p className="muted">
+                  Local Compose stack only (hidden when <code>CLEARREAD_SHOW_DEMO_ACCOUNTS=false</code>). Keycloak console
+                  admin is separate: <code>admin</code> / <code>admin</code> on the master realm.
+                </p>
+                <ul>
+                  {DEMO_ACCOUNTS.map((a) => (
+                    <li key={a.username}>
+                      <code>{a.username}</code> / <code>{a.password}</code>
+                      <span className="muted"> — {a.role}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <p className="muted">Production access is via your organization IdP (OIDC SSO / invite).</p>
+            )}
+          </div>
         ) : (
           <>
             <div className="tabs">

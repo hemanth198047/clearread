@@ -16,6 +16,9 @@ if not defined CLEARREAD_KEYCLOAK_PORT set CLEARREAD_KEYCLOAK_PORT=8081
 set OK=0
 set FAIL=0
 
+python -c "import json;from pathlib import Path;r=json.loads(Path('infra/keycloak/realm-clearread.json').read_text());assert r.get('registrationAllowed') is True;u={x['username'] for x in r.get('users',[])};assert {'admin','user','demo'}<=u" >nul 2>&1
+if errorlevel 1 (echo FAIL Realm seed (admin/user/demo + registration) & set /a FAIL+=1) else (echo OK   Realm seed (admin/user/demo + registration) & set /a OK+=1)
+
 curl -sf http://localhost:%CLEARREAD_API_PORT%/v1/health >nul 2>&1
 if errorlevel 1 (echo FAIL API /v1/health & set /a FAIL+=1) else (echo OK   API /v1/health & set /a OK+=1)
 
@@ -24,6 +27,9 @@ if errorlevel 1 (echo FAIL API /v1/capabilities & set /a FAIL+=1) else (echo OK 
 
 curl -sf http://localhost:%CLEARREAD_API_PORT%/v1/branding/default >nul 2>&1
 if errorlevel 1 (echo FAIL API /v1/branding/default & set /a FAIL+=1) else (echo OK   API /v1/branding/default & set /a OK+=1)
+
+curl -sf http://localhost:%CLEARREAD_API_PORT%/v1/branding/default 2>nul | findstr /C:"showDemoAccounts" >nul
+if errorlevel 1 (echo FAIL Branding shows demo accounts flag & set /a FAIL+=1) else (echo OK   Branding shows demo accounts flag & set /a OK+=1)
 
 curl -sf http://localhost:%CLEARREAD_WEB_PORT%/ >nul 2>&1
 if errorlevel 1 (echo FAIL Web UI & set /a FAIL+=1) else (echo OK   Web UI & set /a OK+=1)

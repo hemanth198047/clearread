@@ -1,10 +1,12 @@
 {
   "realm": "clearread",
   "enabled": true,
-  "registrationAllowed": false,
+  "registrationAllowed": true,
+  "registrationEmailAsUsername": false,
+  "verifyEmail": false,
   "loginWithEmailAllowed": true,
   "duplicateEmailsAllowed": false,
-  "resetPasswordAllowed": false,
+  "resetPasswordAllowed": true,
   "editUsernameAllowed": false,
   "sslRequired": "none",
   "clients": [
@@ -79,6 +81,36 @@
     }
   ],
   "users": [
+    {
+      "username": "admin",
+      "enabled": true,
+      "email": "admin@example.com",
+      "emailVerified": true,
+      "firstName": "Workspace",
+      "lastName": "Admin",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "admin",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "user",
+      "enabled": true,
+      "email": "user@example.com",
+      "emailVerified": true,
+      "firstName": "Standard",
+      "lastName": "User",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "user",
+          "temporary": false
+        }
+      ]
+    },
     {
       "username": "demo",
       "enabled": true,

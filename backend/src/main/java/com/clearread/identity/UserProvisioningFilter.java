@@ -1,5 +1,6 @@
 package com.clearread.identity;
 
+import com.clearread.tenancy.InviteRepository;
 import com.clearread.tenancy.MembershipRepository;
 import com.clearread.tenancy.MembershipRecord;
 import com.clearread.tenancy.TenantContext;
@@ -25,10 +26,16 @@ public class UserProvisioningFilter extends OncePerRequestFilter {
 
     private final UserRepository userRepository;
     private final MembershipRepository membershipRepository;
+    private final InviteRepository inviteRepository;
 
-    public UserProvisioningFilter(UserRepository userRepository, MembershipRepository membershipRepository) {
+    public UserProvisioningFilter(
+            UserRepository userRepository,
+            MembershipRepository membershipRepository,
+            InviteRepository inviteRepository
+    ) {
         this.userRepository = userRepository;
         this.membershipRepository = membershipRepository;
+        this.inviteRepository = inviteRepository;
     }
 
     @Override
@@ -49,13 +56,21 @@ public class UserProvisioningFilter extends OncePerRequestFilter {
                     return;
                 }
                 String email = jwt.getClaimAsString("email");
-                String name = firstNonBlank(jwt.getClaimAsString("name"), jwt.getClaimAsString("preferred_username"), email, subject);
+                String preferredUsername = jwt.getClaimAsString("preferred_username");
+                String name = firstNonBlank(jwt.getClaimAsString("name"), preferredUsername, email, subject);
                 UserRecord user = userRepository.upsert(subject, email, name);
                 request.setAttribute(ATTR_USER, user);
 
                 List<MembershipRecord> memberships = membershipRepository.findByUserId(user.id());
                 if (memberships.isEmpty()) {
-                    membershipRepository.ensureMembership(DEMO_TENANT_ID, user.id(), "admin");
+                    var invite = inviteRepository.findPendingByEmail(email);
+                    String role = DefaultMembershipRole.resolve(
+                            preferredUsername,
+                            invite.map(InviteRepository.InviteRecord::role).orElse(null)
+                    );
+                    UUID tenantId = invite.map(InviteRepository.InviteRecord::tenantId).orElse(DEMO_TENANT_ID);
+                    membershipRepository.ensureMembership(tenantId, user.id(), role);
+                    invite.ifPresent(inv -> inviteRepository.markAccepted(inv.id(), user.id()));
                     memberships = membershipRepository.findByUserId(user.id());
                 }
 

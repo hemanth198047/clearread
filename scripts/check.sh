@@ -29,9 +29,19 @@ check() {
   fi
 }
 
+check "Realm seed (admin/user/demo + registration)" python3 -c "
+import json
+from pathlib import Path
+r = json.loads(Path('infra/keycloak/realm-clearread.json').read_text())
+assert r.get('registrationAllowed') is True, 'registrationAllowed'
+users = {u['username'] for u in r.get('users', [])}
+assert {'admin', 'user', 'demo'} <= users, users
+"
+
 check "API /v1/health" curl -sf "http://localhost:${CLEARREAD_API_PORT}/v1/health" >/dev/null
 check "API /v1/capabilities" curl -sf "http://localhost:${CLEARREAD_API_PORT}/v1/capabilities" >/dev/null
 check "API /v1/branding/default" curl -sf "http://localhost:${CLEARREAD_API_PORT}/v1/branding/default" >/dev/null
+check "Branding shows demo accounts flag" bash -c "curl -sf \"http://localhost:${CLEARREAD_API_PORT}/v1/branding/default\" | grep -q 'showDemoAccounts'"
 check "Web UI" curl -sf "http://localhost:${CLEARREAD_WEB_PORT}/" >/dev/null
 check "Keycloak realm OIDC" curl -sf "http://localhost:${CLEARREAD_KEYCLOAK_PORT}/realms/clearread/.well-known/openid-configuration" >/dev/null
 

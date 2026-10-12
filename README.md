@@ -1,6 +1,6 @@
-# ClearRead ![version](https://img.shields.io/badge/version-v1.0.3-1a5f4a)
+# ClearRead ![version](https://img.shields.io/badge/version-v1.0.4-1a5f4a)
 
-**ClearRead v1.0.3** (temporary product name; branding is configurable).  
+**ClearRead v1.0.4** (temporary product name; branding is configurable).  
 Turns Markdown and plain text into structured, accessible reading experiences — **preserves originals**, **no AI required** for the core path, and **honest format support** via a capability registry.
 
 ## Prerequisites
@@ -46,7 +46,17 @@ If Compose reports `port is already allocated` (often **8080**), start scripts *
 
 Windows: `scripts\start.bat` / `stop.bat` / `check.bat` / `backup.bat` / `restore.bat`. The `.bat` start path does **not** include host fallback — if Compose API never becomes healthy (Docker bridge issues), use Git Bash or WSL with `bash scripts/start.sh`. Full matrix: [docs/ops/scripts.md](docs/ops/scripts.md).
 
-**Demo login (Keycloak):** username `demo`, password `demo`
+### Access (local Keycloak)
+
+| Account | Password | Role |
+| --- | --- | --- |
+| `admin` | `admin` | Workspace admin |
+| `user` | `user` | Standard member (author) |
+| `demo` | `demo` | Legacy admin (compat) |
+
+**Sign up:** open the web UI → **Create account** (Keycloak self-registration). New accounts join the Demo Workspace automatically. Credentials on the landing page are shown only when `CLEARREAD_SHOW_DEMO_ACCOUNTS=true` (Compose default). Production: org IdP SSO / admin invite links — set `CLEARREAD_SHOW_DEMO_ACCOUNTS=false` and disable IdP self-registration.
+
+If an older Compose Keycloak container still has only `demo`, recreate it so the realm JSON re-imports: `docker compose -p clearread -f infra/compose.yaml up -d --force-recreate keycloak` (Keycloak has no persistent volume in this stack).
 
 ### Checks
 
@@ -129,7 +139,7 @@ Windows Postgres: `scripts\backup.bat`. Object sync: Git Bash `bash scripts/back
 
 ## Release status
 
-**v1.0.3** — patch on **v1.0.0 FINAL** (API Docker Gradle native-platform / BuildKit cache fix; v1.0.2 Gradle base image; v1.0.1 port-conflict fail-fast). Phases 1–6 + acceptance + post-acceptance hardening. See [CHANGELOG.md](CHANGELOG.md).
+**v1.0.4** — patch on **v1.0.0 FINAL** (demo admin/user accounts + self-registration / invite path; prior: v1.0.3 Gradle native-platform cache, v1.0.2 Gradle image, v1.0.1 port fail-fast). Phases 1–6 + acceptance + post-acceptance hardening. See [CHANGELOG.md](CHANGELOG.md).
 
 | Phase | Docs |
 | --- | --- |

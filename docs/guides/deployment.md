@@ -30,9 +30,14 @@ cd backend && ./gradlew bootRun
 cd frontend && npm run dev
 ```
 
+## Access model
+
+- **Local:** Keycloak realm import seeds `admin`/`admin`, `user`/`user`, `demo`/`demo`; self-registration enabled; SPA **Create account** + demo credential panel (`CLEARREAD_SHOW_DEMO_ACCOUNTS`).
+- **Production / enterprise:** org IdP OIDC SSO (or IdP invite). Disable Keycloak/demo self-registration, set `CLEARREAD_SHOW_DEMO_ACCOUNTS=false`, and use Admin → Invite user (DB pending invite + copyable link) or IdP provisioning.
+
 ## Production checklist (summary)
 
-1. Replace demo IdP; disable demo users.
+1. Replace demo IdP; disable seeded users and IdP self-registration; `CLEARREAD_SHOW_DEMO_ACCOUNTS=false`.
 2. Terminate TLS + HSTS at the edge; set `CLEARREAD_CORS_ORIGINS` to real origins.
 3. Pin image **digests** (Compose ships version tags; see operator runbook).
 4. Keep AI disabled unless policy + provider reviewed.
@@ -45,5 +50,5 @@ Primary knobs live in `backend/src/main/resources/application.yml` and Compose `
 
 ## OpenAPI
 
-- Spec: `/v3/api-docs` (version **1.0.3**)
+- Spec: `/v3/api-docs` (version **1.0.4**)
 - Swagger UI: `/swagger-ui.html`

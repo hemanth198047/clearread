@@ -47,7 +47,8 @@ public class PublicController {
                 "productName", b.getProductName(),
                 "primaryColor", b.getPrimaryColor(),
                 "secondaryColor", b.getSecondaryColor(),
-                "logoUrl", b.getLogoUrl() == null ? "" : b.getLogoUrl()
+                "logoUrl", b.getLogoUrl() == null ? "" : b.getLogoUrl(),
+                "showDemoAccounts", b.isShowDemoAccounts()
         );
     }
 }

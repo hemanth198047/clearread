@@ -5,6 +5,7 @@ type AuthState = {
   user: User | null;
   loading: boolean;
   login: () => Promise<void>;
+  register: () => Promise<void>;
   logout: () => Promise<void>;
   getAccessToken: () => string | null;
   devBypass: boolean;
@@ -68,6 +69,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await manager?.signinRedirect();
   }, [manager]);
 
+  /** Opens Keycloak self-registration (realm registrationAllowed) via OIDC PKCE. */
+  const register = useCallback(async () => {
+    if (devBypass || !manager) return;
+    const meta = await manager.metadataService.getMetadata();
+    const previous = meta.authorization_endpoint;
+    meta.authorization_endpoint = `${authority.replace(/\/$/, "")}/protocol/openid-connect/registrations`;
+    try {
+      await manager.signinRedirect();
+    } finally {
+      meta.authorization_endpoint = previous;
+    }
+  }, [manager]);
+
   const logout = useCallback(async () => {
     if (devBypass) {
       setUser(null);
@@ -87,6 +101,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user,
     loading,
     login,
+    register,
     logout,
     getAccessToken,
     devBypass,

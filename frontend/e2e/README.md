@@ -28,7 +28,7 @@ Optional env:
 | `CLEARREAD_WEB_URL` | `http://localhost:5173` | SPA base URL |
 | `CLEARREAD_API_URL` | `http://localhost:8080` | API for readiness + token |
 | `CLEARREAD_OIDC_TOKEN_URL` | Keycloak token endpoint | Password grant for `demo`/`demo` |
-| `CLEARREAD_E2E_USER` / `CLEARREAD_E2E_PASSWORD` | `demo` / `demo` | Test user |
+| `CLEARREAD_E2E_USER` / `CLEARREAD_E2E_PASSWORD` | `demo` / `demo` (also `admin`/`admin`, `user`/`user`) | Test user |
 | `CLEARREAD_E2E_FORCE` | unset | Set to `1` to fail instead of skip when stack is down |
 
 ## Docker / agent environments

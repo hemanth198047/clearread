@@ -5,6 +5,20 @@ All notable changes to ClearRead are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.4] — 2026-10-12
+
+### Added
+
+- Seeded Keycloak demo accounts: **admin** / **admin** (workspace admin), **user** / **user** (author), plus legacy **demo** / **demo**.
+- Keycloak realm **self-registration** enabled for local Compose; SPA **Create account** opens Keycloak registration (OIDC PKCE).
+- Landing / sign-in copy for Sign in, Create account, and Demo accounts (gated by `CLEARREAD_SHOW_DEMO_ACCOUNTS`).
+- First-login provisioning maps seeded usernames to roles; new signups join Demo Workspace as **author** (or accept a pending invite role).
+- Workspace admin **invite user** (email + role) stores a pending invite and copies an invite deep link (no outbound email).
+
+### Changed
+
+- Docs / start scripts (`.sh` + `.bat`) document admin/user credentials and signup steps.
+
 ## [1.0.3] — 2026-10-12
 
 ### Fixed

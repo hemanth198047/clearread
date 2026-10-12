@@ -3,6 +3,7 @@ package com.clearread.api;
 import com.clearread.audit.AuditService;
 import com.clearread.identity.UserRecord;
 import com.clearread.jobs.JobRepository;
+import com.clearread.tenancy.InviteRepository;
 import com.clearread.tenancy.TenantContext;
 import com.clearread.tenancy.WorkspaceSettingsRepository;
 import com.clearread.tenancy.WorkspaceSettingsRepository.WorkspaceSettings;
@@ -18,6 +19,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,17 +34,20 @@ public class TenantAdminController {
     private final WorkspaceSettingsRepository settings;
     private final JobRepository jobs;
     private final AuditService audit;
+    private final InviteRepository invites;
 
     public TenantAdminController(
             JdbcTemplate jdbc,
             WorkspaceSettingsRepository settings,
             JobRepository jobs,
-            AuditService audit
+            AuditService audit,
+            InviteRepository invites
     ) {
         this.jdbc = jdbc;
         this.settings = settings;
         this.jobs = jobs;
         this.audit = audit;
+        this.invites = invites;
     }
 
     @GetMapping
@@ -273,6 +279,38 @@ public class TenantAdminController {
                 .orElseThrow();
     }
 
+    public record InviteRequest(String email, String role, Integer expiresInDays) {
+    }
+
+    @PostMapping("/invites")
+    Map<String, Object> createInvite(
+            HttpServletRequest request,
+            @PathVariable("tenantId") UUID tenantId,
+            @RequestBody InviteRequest body
+    ) {
+        UserRecord actor = MeController.requireUser(request);
+        requireAdmin(tenantId);
+        if (body.email() == null || body.email().isBlank() || !body.email().contains("@")) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Valid email required");
+        }
+        String role = body.role() == null || body.role().isBlank() ? "author" : body.role().trim();
+        if (!List.of("viewer", "author", "admin").contains(role)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid role");
+        }
+        int days = body.expiresInDays() == null ? 14 : Math.max(1, Math.min(90, body.expiresInDays()));
+        var invite = invites.create(tenantId, body.email(), role, actor.id(), Instant.now().plus(days, ChronoUnit.DAYS));
+        audit.record(actor.id(), "member.invite", "invite", invite.id().toString(),
+                Map.of("email", invite.email(), "role", invite.role()));
+        return toInviteMap(invite, request);
+    }
+
+    @GetMapping("/invites")
+    List<Map<String, Object>> listInvites(HttpServletRequest request, @PathVariable("tenantId") UUID tenantId) {
+        MeController.requireUser(request);
+        requireAdmin(tenantId);
+        return invites.listByTenant(tenantId).stream().map(i -> toInviteMap(i, request)).toList();
+    }
+
     @GetMapping("/audit-events")
     List<Map<String, Object>> auditEvents(HttpServletRequest request, @PathVariable("tenantId") UUID tenantId) {
         MeController.requireUser(request);
@@ -325,6 +363,25 @@ public class TenantAdminController {
         m.put("aiProviderId", s.aiProviderId());
         m.put("aiDailyQuota", s.aiDailyQuota());
         m.put("aiMaxRetries", s.aiMaxRetries());
+        return m;
+    }
+
+    private static Map<String, Object> toInviteMap(InviteRepository.InviteRecord invite, HttpServletRequest request) {
+        String origin = request.getHeader("Origin");
+        if (origin == null || origin.isBlank()) {
+            origin = "http://localhost:5173";
+        }
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("id", invite.id().toString());
+        m.put("email", invite.email());
+        m.put("role", invite.role());
+        m.put("status", invite.status());
+        m.put("token", invite.token());
+        m.put("invitePath", "/invite/" + invite.token());
+        m.put("inviteUrl", origin.replaceAll("/$", "") + "/invite/" + invite.token());
+        m.put("expiresAt", invite.expiresAt().toString());
+        m.put("createdAt", invite.createdAt().toString());
+        m.put("note", "No email is sent. Copy inviteUrl and share it with the invitee (IdP/self-registration).");
         return m;
     }
 }

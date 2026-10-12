@@ -2,10 +2,25 @@
 
 ClearRead turns Markdown and other text-based files into a calm, structured reading experience while preserving the original bytes.
 
-## Sign in
+## Sign in / Create account
 
 1. Open the web UI (Compose default: http://localhost:5173).
-2. Sign in with your organization IdP. Local demo: `demo` / `demo`.
+2. **Sign in** — existing Keycloak / org IdP account.
+3. **Create account** — local Compose enables Keycloak self-registration; you land in the Demo Workspace as an author after first login.
+
+### Local demo accounts
+
+Shown on the landing page when `CLEARREAD_SHOW_DEMO_ACCOUNTS=true` (default for Compose):
+
+| Username | Password | Role |
+| --- | --- | --- |
+| `admin` | `admin` | Workspace admin |
+| `user` | `user` | Standard member (author) |
+| `demo` | `demo` | Legacy admin (compat) |
+
+Windows: `scripts\start.bat` prints the same credentials when the stack is ready.
+
+Production / enterprise: access is via your organization IdP (OIDC SSO or invite). Admins can also create an invite link under Admin → Invite user (copy link; email is not sent by ClearRead).
 
 ## Paste → read
 
@@ -40,8 +55,4 @@ ClearRead turns Markdown and other text-based files into a calm, structured read
 
 ## Export
 
-From the reader toolbar: Export Markdown / HTML / PDF. These are **generated** artifacts. Use **Download original** for the immutable source.
-
-## Optional AI
-
-AI enrichment is off by default and never required for reading. Org admins enable it under Admin when policy allows.
+Reader toolbar → Export Markdown / HTML / PDF (generated artifacts; originals stay separate).
