@@ -1,0 +1,8 @@
+{
+  "product": "ClearRead",
+  "formats": ["markdown", "json", "csv"],
+  "principles": {
+    "preserveOriginal": true,
+    "aiRequired": false
+  }
+}

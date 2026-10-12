@@ -68,6 +68,7 @@ export function ReaderPage() {
   const [requireAuth, setRequireAuth] = useState(true);
   const [maxViews, setMaxViews] = useState(50);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [exportFormats, setExportFormats] = useState<{ targetFormat: string; converterId: string }[]>([]);
 
   async function loadDiagnostics(docId: string, accessToken: string) {
     try {
@@ -86,6 +87,16 @@ export function ReaderPage() {
     setError(null);
     setStatusNote(null);
   }
+
+  useEffect(() => {
+    apiFetch("/v1/capabilities", null)
+      .then((data) => {
+        const converters = (data as { exports?: { converters?: { targetFormat: string; converterId: string }[] } })
+          ?.exports?.converters;
+        if (converters?.length) setExportFormats(converters);
+      })
+      .catch(() => setExportFormats([]));
+  }, []);
 
   useEffect(() => {
     if (!id || !token) return;
@@ -260,20 +271,31 @@ export function ReaderPage() {
   return (
     <>
       <div className="org-actions">
-        <button type="button" className="secondary" onClick={() => void exportDoc("markdown")}>
-          Export Markdown
-        </button>
-        <button type="button" className="secondary" onClick={() => void exportDoc("html")}>
-          Export HTML
-        </button>
-        <button type="button" className="secondary" onClick={() => void exportDoc("pdf")} title="Constrained text PDF from ClearDoc">
-          Export PDF
-        </button>
+        {(exportFormats.length
+          ? exportFormats
+          : [
+              { targetFormat: "markdown", converterId: "cleardoc-to-markdown" },
+              { targetFormat: "html", converterId: "cleardoc-to-html-sanitized" },
+              { targetFormat: "pdf", converterId: "cleardoc-to-pdf-constrained" },
+            ]
+        ).map((c) => (
+          <button
+            key={c.targetFormat}
+            type="button"
+            className="secondary"
+            title={`${c.converterId} · generated artifact`}
+            onClick={() => void exportDoc(c.targetFormat as "markdown" | "html" | "pdf")}
+          >
+            Export {c.targetFormat === "html" ? "HTML" : c.targetFormat === "pdf" ? "PDF" : "Markdown"}
+          </button>
+        ))}
         <button type="button" className="secondary" onClick={() => void openShare()}>
           Share / preview
         </button>
-        <p className="muted" style={{ margin: 0 }}>
-          Derived exports are generated from ClearDoc; download original for byte-identical source.
+        <p className="muted export-honesty" style={{ margin: 0, flexBasis: "100%" }}>
+          Generated from ClearDoc (<code>artifactKind=generated</code>
+          {exportFormats[0]?.converterId ? `; e.g. ${exportFormats.map((c) => c.converterId).join(", ")}` : ""}).
+          Download original for byte-identical source. PDF is constrained text layout, not a print engine.
         </p>
       </div>
 

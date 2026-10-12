@@ -46,4 +46,47 @@ class MarkdownAdapterTest {
             return p != null && p.toString().contains("kind=inferred");
         })).isTrue();
     }
+
+    @Test
+    void parsesGfmTablesAsDataTable() {
+        String md = """
+                | Name | Role |
+                | --- | --- |
+                | Ada | Author |
+                | Grace | Reader |
+                """;
+        ClearDoc doc = adapter.parse(
+                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
+                "Table doc", "table.md", "abc", md.getBytes(StandardCharsets.UTF_8)
+        );
+        assertThat(doc.body().stream().anyMatch(n -> "dataTable".equals(n.get("type")))).isTrue();
+        @SuppressWarnings("unchecked")
+        var table = doc.body().stream().filter(n -> "dataTable".equals(n.get("type"))).findFirst().orElseThrow();
+        assertThat(table.get("headers").toString()).contains("Name", "Role");
+        assertThat(table.get("rows").toString()).contains("Ada", "Grace");
+    }
+
+    @Test
+    void mermaidFenceKeepsSourceAndAddsTextFallback() {
+        String md = """
+                # Diagram
+                
+                ```mermaid
+                flowchart TD
+                  A[Start] --> B[End]
+                ```
+                """;
+        ClearDoc doc = adapter.parse(
+                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
+                null, "diagram.md", "abc", md.getBytes(StandardCharsets.UTF_8)
+        );
+        assertThat(doc.body().stream().anyMatch(n ->
+                "codeBlock".equals(n.get("type")) && String.valueOf(n.get("language")).contains("mermaid")
+        )).isTrue();
+        assertThat(doc.body().stream().anyMatch(n ->
+                "formattedSource".equals(n.get("type")) && "mermaid-outline".equals(n.get("language"))
+        )).isTrue();
+        assertThat(doc.warnings().stream().anyMatch(w -> "mermaid-text-fallback".equals(w.code()))).isTrue();
+        assertThat(doc.source().adapterVersion()).isEqualTo("1.0.1");
+    }
 }

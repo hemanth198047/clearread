@@ -199,7 +199,11 @@ public class DocumentService {
 
         String formatId = forcedFormatId != null ? forcedFormatId : transformService.detectFormat(filename, contentType);
         if (formatId == null || !capabilities.supportsIngest(formatId)) {
-            throw new ResponseStatusException(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "Unsupported format");
+            String detail = formatId == null
+                    ? "Unsupported format — not recognized. See GET /v1/capabilities for ingestible formats."
+                    : "Unsupported format '" + formatId
+                    + "' — registered but not ingestible (or unknown). See GET /v1/capabilities.";
+            throw new ResponseStatusException(HttpStatus.UNSUPPORTED_MEDIA_TYPE, detail);
         }
 
         UUID documentId = UUID.randomUUID();

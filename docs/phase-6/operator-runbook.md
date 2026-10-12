@@ -32,7 +32,14 @@ UI and `/v1/capabilities` must only claim formats registered in `capabilities/re
 ./scripts/restore.sh /path/to/backup-dir
 ```
 
-Also snapshot object-store prefixes for the same window. Verify readiness after restore.
+On Windows (cmd), beginner-friendly wrappers call Compose `pg_dump` / `pg_restore`:
+
+```bat
+scripts\backup.bat
+scripts\restore.bat path\to\backup-dir
+```
+
+Prefer Git Bash / WSL for the full bash helpers (`CLEARREAD_DB_URL` JDBC normalization, MANIFEST notes). Also snapshot object-store `tenants/*` prefixes for the same window. After restore: `./scripts/check.sh` (or `scripts\check.bat`) and confirm `/v1/health`.
 
 ## Image pinning (production)
 
@@ -57,3 +64,28 @@ Recommended pins for this release train: `postgres:16-alpine`, `localstack/local
 2. Rotate preview/share tokens (revoke APIs) and OIDC clients.
 3. Requeue dead jobs from Admin after root-cause.
 4. Restore from last known-good backup if integrity failure.
+
+## Troubleshooting (local / Compose)
+
+### Compose API never healthy (Docker bridge)
+
+Some environments break container-to-container networking after a manual `dockerd` start: published ports work from the host, but `api` cannot reach `db` / Keycloak / object store on the Compose network.
+
+1. Check: `docker compose -p clearread -f infra/compose.yaml logs --tail=80 api`
+2. Prefer `./scripts/start.sh` — it waits for `/v1/health`, then **falls back** to host `bootRun` + Vite against published dependency ports.
+3. Windows `scripts\start.bat` does **not** include host fallback; use Git Bash/WSL `bash scripts/start.sh` when the bridge is broken.
+4. Smoke: `./scripts/check.sh` (five named checks).
+
+### Image build exit 127 (`./gradlew`)
+
+Usually `gradlew` not executable or CRLF line endings. See [compose-build-fix.md](../ops/compose-build-fix.md). `start.sh` / `start.bat` print the same hints on build failure.
+
+### After restore
+
+1. Re-sync object-store `tenants/*` for the same backup window.
+2. `curl -sf http://localhost:8080/v1/health`
+3. `./scripts/check.sh` (or `scripts\check.bat`)
+
+### Capability honesty
+
+`GET /v1/capabilities` is the source of truth. AsciiDoc/RST appear as **unsupported** stubs (no parser). PDF export is **constrained text PDF** (`cleardoc-to-pdf-constrained`), registered as a generated artifact — not a layout/print engine claim.

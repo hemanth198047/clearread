@@ -577,3 +577,44 @@
     scroll-behavior: auto;
   }
 }
+
+.mermaid-note {
+  font-family: var(--reader-font-ui);
+  font-size: 0.85rem;
+  margin: 0 0 0.35rem;
+}
+
+@media print {
+  .topbar,
+  .org-actions,
+  .reader-toolbar,
+  .reader-toc,
+  .reader-progress,
+  .prefs-panel,
+  .share-panel {
+    display: none !important;
+  }
+
+  .reader-root {
+    border: 0;
+    min-height: 0;
+    display: block;
+    overflow: visible;
+    animation: none;
+  }
+
+  .reader-main {
+    overflow: visible;
+    max-height: none;
+  }
+
+  .reader-article {
+    max-width: none;
+  }
+
+  pre,
+  table,
+  blockquote {
+    break-inside: avoid;
+  }
+}

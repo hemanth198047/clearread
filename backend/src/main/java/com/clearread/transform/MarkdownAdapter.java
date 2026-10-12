@@ -8,12 +8,18 @@ import com.clearread.transform.cleardoc.ClearDocModels.Provenance;
 import com.clearread.transform.cleardoc.ClearDocModels.Source;
 import com.clearread.transform.cleardoc.ClearDocModels.Warning;
 import org.commonmark.ext.gfm.strikethrough.StrikethroughExtension;
+import org.commonmark.ext.gfm.tables.TableBlock;
+import org.commonmark.ext.gfm.tables.TableBody;
+import org.commonmark.ext.gfm.tables.TableCell;
+import org.commonmark.ext.gfm.tables.TableHead;
+import org.commonmark.ext.gfm.tables.TableRow;
 import org.commonmark.ext.gfm.tables.TablesExtension;
 import org.commonmark.ext.task.list.items.TaskListItemsExtension;
 import org.commonmark.node.AbstractVisitor;
 import org.commonmark.node.BlockQuote;
 import org.commonmark.node.BulletList;
 import org.commonmark.node.Code;
+import org.commonmark.node.CustomBlock;
 import org.commonmark.node.Emphasis;
 import org.commonmark.node.FencedCodeBlock;
 import org.commonmark.node.HardLineBreak;
@@ -24,9 +30,9 @@ import org.commonmark.node.Node;
 import org.commonmark.node.OrderedList;
 import org.commonmark.node.Paragraph;
 import org.commonmark.node.SoftLineBreak;
+import org.commonmark.node.SourceSpan;
 import org.commonmark.node.StrongEmphasis;
 import org.commonmark.node.Text;
-import org.commonmark.node.SourceSpan;
 import org.commonmark.node.ThematicBreak;
 import org.commonmark.parser.IncludeSourceSpans;
 import org.commonmark.parser.Parser;
@@ -43,7 +49,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 @Component
 public class MarkdownAdapter implements FormatAdapter {
 
-    private static final String GENERATOR = "markdown-commonmark-gfm@1.0.0";
+    private static final String GENERATOR = "markdown-commonmark-gfm@1.0.1";
 
     private final Parser parser = Parser.builder()
             .extensions(List.of(
@@ -66,7 +72,7 @@ public class MarkdownAdapter implements FormatAdapter {
 
     @Override
     public String adapterVersion() {
-        return "1.0.0";
+        return "1.0.1";
     }
 
     @Override
@@ -121,7 +127,33 @@ public class MarkdownAdapter implements FormatAdapter {
             @Override
             public void visit(FencedCodeBlock codeBlock) {
                 String nodeId = nextId();
-                body.add(ClearDocModels.codeBlock(nodeId, codeBlock.getInfo(), codeBlock.getLiteral(), sourceProvenance(codeBlock)));
+                String info = codeBlock.getInfo();
+                String literal = codeBlock.getLiteral() != null ? codeBlock.getLiteral() : "";
+                body.add(ClearDocModels.codeBlock(nodeId, info, literal, sourceProvenance(codeBlock)));
+                if (MermaidTextFallback.isMermaidLanguage(info)) {
+                    MermaidTextFallback.Result fb = MermaidTextFallback.summarize(literal);
+                    if (fb != null) {
+                        String outlineId = nextId();
+                        warnings.add(new Warning(
+                                "mermaid-text-fallback",
+                                "Mermaid diagram shown as source plus text outline; diagram engines are not executed.",
+                                nodeId
+                        ));
+                        if (fb.scrubbed()) {
+                            warnings.add(new Warning(
+                                    "mermaid-scrubbed",
+                                    "Potentially unsafe markup was stripped from Mermaid source before outlining.",
+                                    nodeId
+                            ));
+                        }
+                        body.add(ClearDocModels.formattedSource(
+                                outlineId,
+                                "mermaid-outline",
+                                fb.outlineText(),
+                                new Provenance("generated", GENERATOR + "+mermaid-text-fallback", null, 0.7)
+                        ));
+                    }
+                }
             }
 
             @Override
@@ -141,6 +173,64 @@ public class MarkdownAdapter implements FormatAdapter {
             @Override
             public void visit(ThematicBreak thematicBreak) {
                 body.add(ClearDocModels.thematicBreak(nextId(), sourceProvenance(thematicBreak)));
+            }
+
+            @Override
+            public void visit(CustomBlock customBlock) {
+                if (customBlock instanceof TableBlock table) {
+                    visitTable(table);
+                } else {
+                    visitChildren(customBlock);
+                }
+            }
+
+            private void visitTable(TableBlock table) {
+                List<String> headers = new ArrayList<>();
+                List<List<String>> rows = new ArrayList<>();
+                Node section = table.getFirstChild();
+                while (section != null) {
+                    if (section instanceof TableHead head) {
+                        Node row = head.getFirstChild();
+                        while (row != null) {
+                            if (row instanceof TableRow tr) {
+                                headers = cellTexts(tr);
+                            }
+                            row = row.getNext();
+                        }
+                    } else if (section instanceof TableBody tableBody) {
+                        Node row = tableBody.getFirstChild();
+                        while (row != null) {
+                            if (row instanceof TableRow tr) {
+                                rows.add(cellTexts(tr));
+                            }
+                            row = row.getNext();
+                        }
+                    }
+                    section = section.getNext();
+                }
+                if (headers.isEmpty() && rows.isEmpty()) {
+                    return;
+                }
+                body.add(ClearDocModels.dataTable(
+                        nextId(),
+                        headers,
+                        rows,
+                        "|",
+                        !headers.isEmpty(),
+                        sourceProvenance(table)
+                ));
+            }
+
+            private List<String> cellTexts(TableRow row) {
+                List<String> cells = new ArrayList<>();
+                Node cell = row.getFirstChild();
+                while (cell != null) {
+                    if (cell instanceof TableCell tc) {
+                        cells.add(plainText(inlineChildren(tc)));
+                    }
+                    cell = cell.getNext();
+                }
+                return cells;
             }
 
             private String nextId() {
@@ -193,7 +283,6 @@ public class MarkdownAdapter implements FormatAdapter {
         int start = Integer.MAX_VALUE;
         int end = 0;
         for (SourceSpan span : spans) {
-            // SourceSpan exposes line/column; map to character offsets via inputIndex when available.
             int inputIndex = span.getInputIndex();
             int length = span.getLength();
             start = Math.min(start, inputIndex);

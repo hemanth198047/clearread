@@ -165,13 +165,22 @@ function Block({
     return <p id={id}>{renderInlines(node.children as Inline[], query, currentHit, hitCounter)}</p>;
   }
   if (type === "codeBlock") {
+    const language = node.language ? String(node.language) : undefined;
+    const isMermaid = language?.trim().split(/\s+/)[0]?.toLowerCase() === "mermaid";
     return (
-      <CodeBlock
-        id={id}
-        text={String(node.text ?? "")}
-        language={node.language ? String(node.language) : undefined}
-        showLineNumbers={prefs.showLineNumbers}
-      />
+      <div className={isMermaid ? "mermaid-source" : undefined}>
+        {isMermaid ? (
+          <p className="mermaid-note muted">
+            Mermaid source (not executed). A text outline appears below when available.
+          </p>
+        ) : null}
+        <CodeBlock
+          id={id}
+          text={String(node.text ?? "")}
+          language={language}
+          showLineNumbers={prefs.showLineNumbers}
+        />
+      </div>
     );
   }
   if (type === "blockquote") {
@@ -272,10 +281,15 @@ function Block({
     );
   }
   if (type === "formattedSource") {
+    const language = node.language ? String(node.language) : "source";
+    const isOutline = language === "mermaid-outline";
     return (
       <div className="formatted-source">
         <div className="formatted-source-bar">
-          <span>{String(node.language ?? "source")}</span>
+          <span>{isOutline ? "Mermaid text fallback" : language}</span>
+          {showInferred && node.provenance && String((node.provenance as { kind?: string }).kind) === "generated" ? (
+            <span className="badge-inferred"> generated</span>
+          ) : null}
           <button
             type="button"
             className="collapse-toggle"
@@ -287,8 +301,8 @@ function Block({
         <CodeBlock
           id={id}
           text={String(node.text ?? "")}
-          language={node.language ? String(node.language) : undefined}
-          showLineNumbers={prefs.showLineNumbers}
+          language={language}
+          showLineNumbers={prefs.showLineNumbers && !isOutline}
         />
       </div>
     );

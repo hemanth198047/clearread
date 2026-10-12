@@ -4,6 +4,8 @@ import com.clearread.transform.cleardoc.ClearDocModels;
 import com.clearread.transform.cleardoc.ClearDocModels.ClearDoc;
 import com.clearread.transform.cleardoc.ClearDocModels.Metadata;
 import com.clearread.transform.cleardoc.ClearDocModels.Source;
+import com.lowagie.text.pdf.PdfReader;
+import com.lowagie.text.pdf.parser.PdfTextExtractor;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -14,7 +16,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class PdfExportConverterTest {
 
     @Test
-    void convertsClearDocToPdfBytes() {
+    void convertsClearDocToPdfBytes() throws Exception {
         ClearDoc doc = new ClearDoc(
                 "1.0.0",
                 "d1",
@@ -34,5 +36,11 @@ class PdfExportConverterTest {
         assertThat(result.filenameSuffix()).isEqualTo(".pdf");
         assertThat(result.bytes().length).isGreaterThan(100);
         assertThat(new String(result.bytes(), 0, 4)).isEqualTo("%PDF");
+        try (PdfReader reader = new PdfReader(result.bytes())) {
+            String text = new PdfTextExtractor(reader).getTextFromPage(1);
+            assertThat(text).contains("ClearRead generated PDF export");
+            assertThat(text).contains("Hello PDF");
+            assertThat(text).contains("Body text.");
+        }
     }
 }

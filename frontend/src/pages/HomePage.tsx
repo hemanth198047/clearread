@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiFetch } from "../api/client";
 import { useAuth } from "../auth/AuthProvider";
@@ -10,6 +10,22 @@ type DocMeta = {
   status: string;
   formatId: string;
   jobId?: string;
+};
+
+type CapabilityFormat = {
+  formatId: string;
+  displayName?: string;
+  extensions?: string[];
+  mimeTypes?: string[];
+  ingest?: string;
+  notes?: string;
+  features?: Record<string, string>;
+};
+
+type Capabilities = {
+  registryVersion?: string;
+  formats?: CapabilityFormat[];
+  exports?: { note?: string; converters?: { targetFormat: string; converterId: string }[] };
 };
 
 export function HomePage() {
@@ -26,9 +42,38 @@ export function HomePage() {
   const [progress, setProgress] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [docs, setDocs] = useState<DocMeta[]>([]);
+  const [capabilities, setCapabilities] = useState<Capabilities | null>(null);
 
   const token = auth.getAccessToken();
   const signedIn = Boolean(auth.user || (auth.devBypass && token));
+
+  const supportedFormats = useMemo(
+    () => (capabilities?.formats ?? []).filter((f) => f.ingest === "supported"),
+    [capabilities]
+  );
+  const unsupportedFormats = useMemo(
+    () => (capabilities?.formats ?? []).filter((f) => f.ingest && f.ingest !== "supported"),
+    [capabilities]
+  );
+  const acceptAttr = useMemo(() => {
+    const parts: string[] = [];
+    for (const f of supportedFormats) {
+      for (const ext of f.extensions ?? []) parts.push(ext);
+      for (const mime of f.mimeTypes ?? []) parts.push(mime);
+    }
+    return parts.length ? parts.join(",") : undefined;
+  }, [supportedFormats]);
+
+  useEffect(() => {
+    apiFetch("/v1/capabilities", null)
+      .then((data) => {
+        const caps = data as Capabilities;
+        setCapabilities(caps);
+        const first = caps.formats?.find((f) => f.ingest === "supported");
+        if (first?.formatId) setFormatId((prev) => prev || first.formatId);
+      })
+      .catch(() => setCapabilities(null));
+  }, []);
 
   useEffect(() => {
     if (!signedIn || !token) return;
@@ -50,6 +95,14 @@ export function HomePage() {
     throw new Error("Timed out waiting for document");
   }
 
+  function formatError(err: unknown): string {
+    const raw = err instanceof Error ? err.message : String(err);
+    if (/unsupported format/i.test(raw) || /UNSUPPORTED_MEDIA_TYPE/i.test(raw) || /415/.test(raw)) {
+      return `${raw} — See Format support below or GET /v1/capabilities.`;
+    }
+    return raw;
+  }
+
   async function onPaste(e: FormEvent) {
     e.preventDefault();
     if (!token) return;
@@ -64,7 +117,7 @@ export function HomePage() {
       await waitUntilReady(created.id, token);
       navigate(`/documents/${created.id}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(formatError(err));
     } finally {
       setBusy(false);
       setProgress(null);
@@ -88,7 +141,7 @@ export function HomePage() {
       await waitUntilReady(created.id, token);
       navigate(`/documents/${created.id}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(formatError(err));
     } finally {
       setBusy(false);
       setProgress(null);
@@ -110,7 +163,7 @@ export function HomePage() {
       await waitUntilReady(created.id, token);
       navigate(`/documents/${created.id}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(formatError(err));
     } finally {
       setBusy(false);
       setProgress(null);
@@ -155,17 +208,14 @@ export function HomePage() {
                 <label>
                   Format
                   <select value={formatId} onChange={(e) => setFormatId(e.target.value)}>
-                    <option value="markdown">Markdown</option>
-                    <option value="plain-text">Plain text</option>
-                    <option value="json">JSON</option>
-                    <option value="yaml">YAML</option>
-                    <option value="xml">XML</option>
-                    <option value="csv">CSV</option>
-                    <option value="tsv">TSV</option>
-                    <option value="log">Log</option>
-                    <option value="config">Config / env</option>
-                    <option value="source-code">Source code</option>
-                    <option value="html">HTML (sanitized)</option>
+                    {(supportedFormats.length
+                      ? supportedFormats
+                      : [{ formatId: "markdown", displayName: "Markdown" }]
+                    ).map((f) => (
+                      <option key={f.formatId} value={f.formatId}>
+                        {f.displayName ?? f.formatId}
+                      </option>
+                    ))}
                   </select>
                 </label>
                 <label>
@@ -190,7 +240,7 @@ export function HomePage() {
                   File (text-based formats, max 10 MiB)
                   <input
                     type="file"
-                    accept=".md,.markdown,.txt,.json,.yaml,.yml,.xml,.csv,.tsv,.log,.ini,.conf,.properties,.env,.html,.htm,.java,.ts,.js,.py,.go,.rs,.rb,.kt,.cs,.c,.cpp,.sh,.sql,text/plain,text/markdown,application/json"
+                    accept={acceptAttr}
                     onChange={(e) => setFile(e.target.files?.[0] ?? null)}
                   />
                 </label>
@@ -238,6 +288,30 @@ export function HomePage() {
             )}
           </>
         )}
+
+        <details className="capability-details" id="capabilities">
+          <summary>Format support{capabilities?.registryVersion ? ` (registry ${capabilities.registryVersion})` : ""}</summary>
+          <p className="muted">
+            Claims follow <code>GET /v1/capabilities</code>. Unsupported means unsupported — no silent fake support.
+          </p>
+          <ul className="capability-list">
+            {supportedFormats.map((f) => (
+              <li key={f.formatId}>
+                <strong>{f.displayName ?? f.formatId}</strong>
+                <span className="muted"> · ingestible</span>
+                {f.notes ? <div className="muted">{f.notes}</div> : null}
+              </li>
+            ))}
+            {unsupportedFormats.map((f) => (
+              <li key={f.formatId}>
+                <strong>{f.displayName ?? f.formatId}</strong>
+                <span className="muted"> · {f.ingest}</span>
+                {f.notes ? <div className="muted">{f.notes}</div> : null}
+              </li>
+            ))}
+          </ul>
+          {capabilities?.exports?.note ? <p className="muted">{capabilities.exports.note}</p> : null}
+        </details>
 
         {docs.length > 0 && (
           <div>

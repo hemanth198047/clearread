@@ -241,9 +241,77 @@ textarea {
 .library-list li {
   display: flex;
   justify-content: space-between;
+  align-items: flex-start;
   gap: 1rem;
-  padding: 0.85rem 0;
+  padding: 0.7rem 0;
   border-bottom: 1px solid color-mix(in srgb, var(--color-ink) 12%, transparent);
+}
+
+.library-item-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.library-item-main > a {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.library-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.75rem;
+  margin-top: 0.25rem;
+  font-size: 0.88rem;
+}
+
+.library-desc {
+  margin-top: 0.2rem;
+  font-size: 0.9rem;
+}
+
+.format-chip {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.8rem;
+  letter-spacing: 0.02em;
+  opacity: 0.9;
+}
+
+.library-empty {
+  padding: 1.75rem 0 0.5rem;
+  border-top: 1px solid color-mix(in srgb, var(--color-ink) 10%, transparent);
+}
+
+.library-empty p:first-child {
+  font-size: 1.05rem;
+  margin: 0 0 0.35rem;
+}
+
+.capability-details {
+  margin: 1.5rem 0 0.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid color-mix(in srgb, var(--color-ink) 10%, transparent);
+}
+
+.capability-details summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.capability-list {
+  list-style: none;
+  padding: 0;
+  margin: 0.75rem 0 0;
+}
+
+.capability-list li {
+  padding: 0.45rem 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-ink) 8%, transparent);
+}
+
+.export-honesty {
+  font-size: 0.88rem;
+  line-height: 1.45;
 }
 
 .search-results mark {
