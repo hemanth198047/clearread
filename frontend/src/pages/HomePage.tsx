@@ -210,7 +210,11 @@ export function HomePage() {
   return (
     <>
       <section className="hero">
-        <h1>{branding.productName}</h1>
+        <p className="page-eyebrow">Self-hosted reading workspace</p>
+        <h1>
+          {branding.productName}
+          <span>.</span>
+        </h1>
         <p>
           Turn text-based files into a calm, structured reading experience — without rewriting your originals or
           requiring AI.
@@ -227,6 +231,25 @@ export function HomePage() {
         </div>
       </section>
 
+      <dl className="page-meta-strip" aria-label="Workspace snapshot">
+        <div>
+          <dt>Session</dt>
+          <dd>{auth.loading ? "…" : signedIn ? "Signed in" : "Guest"}</dd>
+        </div>
+        <div>
+          <dt>Recent</dt>
+          <dd>{signedIn ? docs.length : "—"}</dd>
+        </div>
+        <div>
+          <dt>API</dt>
+          <dd>{apiReachable === null ? "…" : apiReachable ? "Up" : "Down"}</dd>
+        </div>
+        <div>
+          <dt>Reader</dt>
+          <dd>Day · Sepia · Night</dd>
+        </div>
+      </dl>
+
       <div className="status-bar" role="status">
         <span className={`status-dot${apiReachable === false ? " err" : apiReachable ? "" : " busy"}`} />
         <span>
@@ -236,7 +259,7 @@ export function HomePage() {
               ? `Signed in · ${docs.length} recent document${docs.length === 1 ? "" : "s"}`
               : "Guest · sign in to ingest and reopen documents"}
         </span>
-        <span className="muted">Day / Sepia / Night themes inside the reader</span>
+        <span className="muted">Theme chrome from Rebeautifier · reader modes unchanged</span>
       </div>
 
       <div className="workspace-grid">

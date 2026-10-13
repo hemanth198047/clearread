@@ -117,6 +117,7 @@ export function LibraryPage() {
       <section className="panel access-panel">
         <div className="page-header" style={{ border: 0, padding: 0, margin: 0 }}>
           <div>
+            <p className="page-eyebrow">Workspace</p>
             <h1>Library</h1>
             <p className="lede">Sign in to browse workspace documents, favorites, and full-text search.</p>
           </div>
@@ -140,6 +141,7 @@ export function LibraryPage() {
     <section className="panel">
       <div className="page-header" style={{ border: 0, padding: 0, margin: 0 }}>
         <div>
+          <p className="page-eyebrow">Workspace</p>
           <h1>Library</h1>
           <p className="lede">Workspace documents with status filters, favorites, and full-text search. Reopen any item after closing the reader.</p>
         </div>

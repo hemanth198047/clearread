@@ -16,20 +16,33 @@ export const DEMO_ACCOUNTS = [
   { username: "demo", password: "demo", role: "Legacy admin (compat)" },
 ] as const;
 
+/** Defaults aligned to Rebeautifier: slate primary + amber accent */
 const defaultBranding: Branding = {
   productName: "ClearRead",
-  primaryColor: "#1a5f4a",
-  secondaryColor: "#c4a35a",
+  primaryColor: "#1e293b",
+  secondaryColor: "#f59e0b",
   logoUrl: "",
   showDemoAccounts: true,
 };
 
 const BrandingContext = createContext<Branding>(defaultBranding);
 
+function applyBrandingCss(primary: string, secondary: string) {
+  const root = document.documentElement.style;
+  root.setProperty("--color-primary", primary);
+  root.setProperty("--primary", primary);
+  root.setProperty("--color-primary-hover", "#0f172a");
+  root.setProperty("--color-secondary", secondary);
+  root.setProperty("--accent", secondary);
+  root.setProperty("--accent-soft", "#fbbf24");
+  root.setProperty("--accent-deep", "#d97706");
+}
+
 export function BrandingProvider({ children }: { children: ReactNode }) {
   const [branding, setBranding] = useState<Branding>(defaultBranding);
 
   useEffect(() => {
+    applyBrandingCss(defaultBranding.primaryColor, defaultBranding.secondaryColor);
     const url = `${apiBase}/v1/branding/default`;
     fetch(url)
       .then(async (r) => {
@@ -39,9 +52,8 @@ export function BrandingProvider({ children }: { children: ReactNode }) {
       .then((data: Partial<Branding>) => {
         const next = { ...defaultBranding, ...data };
         setBranding(next);
-        document.documentElement.style.setProperty("--color-primary", next.primaryColor || defaultBranding.primaryColor);
-        document.documentElement.style.setProperty(
-          "--color-secondary",
+        applyBrandingCss(
+          next.primaryColor || defaultBranding.primaryColor,
           next.secondaryColor || defaultBranding.secondaryColor
         );
         document.title = next.productName || defaultBranding.productName;

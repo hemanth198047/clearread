@@ -21,6 +21,19 @@ export function App() {
   const inAuthCallback = location.pathname === "/auth/callback";
   const chromeLess = inReader || inPreview;
 
+  const crumb =
+    location.pathname === "/"
+      ? "Ingest"
+      : location.pathname.startsWith("/library")
+        ? "Library"
+        : location.pathname.startsWith("/admin")
+          ? "Admin"
+          : location.pathname.startsWith("/invite")
+            ? "Invite"
+            : inAuthCallback
+              ? "Sign-in"
+              : "Workspace";
+
   return (
     <ReaderPreferencesProvider>
       <div
@@ -31,121 +44,124 @@ export function App() {
         </a>
 
         {!chromeLess && (
-          <>
-            <aside className={`app-sidebar${menuOpen ? " open" : ""}`} aria-label="Workspace">
-              <div className="sidebar-brand">
-                <Link className="brand" to="/" onClick={() => setMenuOpen(false)}>
-                  <span className="brand-mark" aria-hidden="true" />
-                  <span className="brand-name">{branding.productName}</span>
-                </Link>
-                <button
-                  type="button"
-                  className="menu-close"
-                  aria-label="Close menu"
-                  onClick={() => setMenuOpen(false)}
-                >
-                  ✕
-                </button>
-              </div>
-              <nav className="sidebar-nav" aria-label="Primary">
-                <NavLink to="/" end onClick={() => setMenuOpen(false)}>
-                  Ingest
-                </NavLink>
-                <NavLink to="/library" onClick={() => setMenuOpen(false)}>
-                  Library
-                </NavLink>
-                <NavLink to="/admin" onClick={() => setMenuOpen(false)}>
-                  Admin
-                </NavLink>
-              </nav>
-              <div className="sidebar-meta">
-                <div className="meta-row">
-                  <span className="meta-label">Session</span>
-                  <span className="meta-value">
-                    {auth.loading
-                      ? "Checking…"
-                      : auth.user || auth.devBypass
-                        ? "Signed in"
-                        : "Guest"}
-                  </span>
-                </div>
-                <div className="meta-row">
-                  <span className="meta-label">API</span>
-                  <span className="meta-value mono">same-origin /v1</span>
-                </div>
-              </div>
-              <div className="sidebar-actions">
-                {auth.loading ? (
-                  <span className="muted">Checking session…</span>
-                ) : auth.user || auth.devBypass ? (
-                  <>
-                    <span className="user-chip" title={auth.user?.profile?.email ?? undefined}>
-                      {auth.user?.profile?.name ??
-                        auth.user?.profile?.email ??
-                        (auth.devBypass ? "Dev user" : "")}
-                    </span>
-                    <button type="button" className="secondary" onClick={() => void auth.logout()}>
-                      Sign out
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <button type="button" className="secondary" onClick={() => void auth.register()}>
-                      Create account
-                    </button>
-                    <button type="button" onClick={() => void auth.login()}>
-                      Sign in
-                    </button>
-                  </>
-                )}
-              </div>
-            </aside>
-            {menuOpen && <div className="sidebar-overlay" onClick={() => setMenuOpen(false)} />}
-          </>
-        )}
-
-        <div className={`content-wrapper${chromeLess ? " content-reader" : ""}`}>
-          {!chromeLess && (
-            <header className="topbar">
+          <header className="topbar topbar-dense">
+            <div className="topbar-left">
               <button
                 type="button"
                 className="menu-btn"
                 aria-label="Open menu"
+                aria-expanded={menuOpen}
                 onClick={() => setMenuOpen(true)}
               >
                 ☰
               </button>
-              <div className="topbar-title">
-                <span className="brand-inline">{branding.productName}</span>
-                <span className="topbar-crumb muted">
-                  {location.pathname === "/"
-                    ? "Ingest"
-                    : location.pathname.startsWith("/library")
-                      ? "Library"
-                      : location.pathname.startsWith("/admin")
-                        ? "Admin"
-                        : location.pathname.startsWith("/invite")
-                          ? "Invite"
-                          : inAuthCallback
-                            ? "Sign-in"
-                            : "Workspace"}
-                </span>
-              </div>
-              <div className="topbar-actions">
-                {!auth.loading && !(auth.user || auth.devBypass) && (
-                  <button type="button" onClick={() => void auth.login()}>
-                    Sign in
-                  </button>
-                )}
-                {(auth.user || auth.devBypass) && (
+              <Link className="brand" to="/" onClick={() => setMenuOpen(false)}>
+                {branding.productName}
+                <span>.</span>
+              </Link>
+              <nav className="topbar-nav" aria-label="Primary">
+                <NavLink to="/" end className={({ isActive }) => `topbar-nav-link${isActive ? " is-active" : ""}`}>
+                  Ingest
+                </NavLink>
+                <NavLink
+                  to="/library"
+                  className={({ isActive }) => `topbar-nav-link${isActive ? " is-active" : ""}`}
+                >
+                  Library
+                </NavLink>
+                <NavLink
+                  to="/admin"
+                  className={({ isActive }) => `topbar-nav-link${isActive ? " is-active" : ""}`}
+                >
+                  Admin
+                </NavLink>
+              </nav>
+            </div>
+            <div className="topbar-actions">
+              <span className="topbar-crumb muted">{crumb}</span>
+              {auth.loading ? (
+                <span className="muted">Checking session…</span>
+              ) : auth.user || auth.devBypass ? (
+                <>
+                  <div className="topbar-user">
+                    <span className="topbar-user-name">
+                      {auth.user?.profile?.name ??
+                        auth.user?.profile?.email ??
+                        (auth.devBypass ? "Dev user" : "Signed in")}
+                    </span>
+                    <span className="topbar-user-meta">Signed in · same-origin /v1</span>
+                  </div>
                   <Link className="button secondary" to="/library">
                     Open library
                   </Link>
-                )}
-              </div>
-            </header>
-          )}
+                  <button type="button" className="secondary" onClick={() => void auth.logout()}>
+                    Sign out
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button type="button" className="secondary" onClick={() => void auth.register()}>
+                    Create account
+                  </button>
+                  <button type="button" onClick={() => void auth.login()}>
+                    Sign in
+                  </button>
+                </>
+              )}
+            </div>
+          </header>
+        )}
 
+        {!chromeLess && (
+          <aside className={`mobile-drawer${menuOpen ? " open" : ""}`} aria-label="Workspace">
+            <div className="mobile-drawer-head">
+              <Link className="brand" to="/" onClick={() => setMenuOpen(false)}>
+                {branding.productName}
+                <span>.</span>
+              </Link>
+              <button
+                type="button"
+                className="menu-close"
+                aria-label="Close menu"
+                onClick={() => setMenuOpen(false)}
+              >
+                ✕
+              </button>
+            </div>
+            <nav className="mobile-nav" aria-label="Mobile primary">
+              <NavLink to="/" end onClick={() => setMenuOpen(false)}>
+                Ingest
+              </NavLink>
+              <NavLink to="/library" onClick={() => setMenuOpen(false)}>
+                Library
+              </NavLink>
+              <NavLink to="/admin" onClick={() => setMenuOpen(false)}>
+                Admin
+              </NavLink>
+            </nav>
+            <div className="mobile-meta">
+              <div className="meta-row">
+                <span className="meta-label">Session</span>
+                <span className="meta-value">
+                  {auth.loading
+                    ? "Checking…"
+                    : auth.user || auth.devBypass
+                      ? "Signed in"
+                      : "Guest"}
+                </span>
+              </div>
+              <div className="meta-row">
+                <span className="meta-label">API</span>
+                <span className="meta-value mono">same-origin /v1</span>
+              </div>
+            </div>
+          </aside>
+        )}
+        {!chromeLess && menuOpen && (
+          <div className="sidebar-overlay" onClick={() => setMenuOpen(false)} />
+        )}
+
+        <div className={`content-wrapper${chromeLess ? " content-reader" : ""}`}>
           <main id="main" className={chromeLess ? "main-reader" : "main-app"}>
             <Routes>
               <Route path="/" element={<HomePage />} />
@@ -162,7 +178,12 @@ export function App() {
           {!chromeLess && (
             <footer className="footer">
               <span>Originals preserved · Exports are generated artifacts</span>
-              <span className="muted">{branding.productName} · configurable branding</span>
+              <span className="muted">
+                {branding.productName} · theme aligned to{" "}
+                <a href="https://github.com/hemanth198047/Rebeautifier" rel="noreferrer" target="_blank">
+                  Rebeautifier
+                </a>
+              </span>
             </footer>
           )}
         </div>

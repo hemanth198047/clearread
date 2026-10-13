@@ -1,7 +1,7 @@
 /* Phase 2 reader chrome — theme tokens from themes.ts */
 .reader-root {
   --reader-font-body: "Literata", Georgia, serif;
-  --reader-font-ui: "Source Sans 3", "Segoe UI", sans-serif;
+  --reader-font-ui: "Newsreader", "Georgia", serif;
   --reader-font-mono: "IBM Plex Mono", ui-monospace, monospace;
   --reader-font-size: 18px;
   --reader-line-height: 1.7;

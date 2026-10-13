@@ -5,6 +5,14 @@ All notable changes to ClearRead are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.2] — 2026-10-13
+
+### Changed
+
+- **Rebeautifier theme:** App chrome aligned to [Rebeautifier](https://github.com/hemanth198047/Rebeautifier) — slate primary `#1e293b`, amber accent `#f59e0b`, Fraunces / Literata / Newsreader, light sticky topbar (replacing dark Projectly sidebar), dense panels / meta strips / pill controls, atmospheric page background.
+- **Branding defaults:** API / DB / SPA defaults use Rebeautifier slate + amber (migration `V7__rebeautifier_branding.sql` for existing Demo Workspace).
+- **Reader accents:** Day / Sepia / Night modes preserved; Sepia accent mapped to amber-deep `#D97706`; Day accent `#2563EB`; Night sky accent unchanged.
+
 ## [1.1.1] — 2026-10-13
 
 ### Fixed

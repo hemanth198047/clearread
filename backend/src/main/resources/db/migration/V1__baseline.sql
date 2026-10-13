@@ -155,4 +155,4 @@ INSERT INTO tenants (id, slug, name, status)
 VALUES ('11111111-1111-1111-1111-111111111111', 'demo', 'Demo Workspace', 'active');
 
 INSERT INTO branding_settings (tenant_id, product_name, primary_color, secondary_color)
-VALUES ('11111111-1111-1111-1111-111111111111', 'ClearRead', '#1a5f4a', '#c4a35a');
+VALUES ('11111111-1111-1111-1111-111111111111', 'ClearRead', '#1e293b', '#f59e0b');
