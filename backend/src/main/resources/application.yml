@@ -10,8 +10,11 @@ spring:
     username: ${CLEARREAD_DB_USER:clearread}
     password: ${CLEARREAD_DB_PASSWORD:clearread}
   flyway:
+    # Always validate in every environment (including local). Never enable
+    # repair-on-migrate here — use scripts/repair-flyway.* for local Compose only.
     enabled: true
     locations: classpath:db/migration
+    validate-on-migrate: true
   security:
     oauth2:
       resourceserver:

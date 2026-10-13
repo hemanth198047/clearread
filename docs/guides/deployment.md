@@ -31,6 +31,8 @@ cd backend && ./gradlew bootRun  # DB host default :5433
 cd frontend && npm run dev
 ```
 
+Local `bootRun` uses the same `application.yml` defaults as Compose (Postgres `:5433`, Keycloak, LocalStack). Flyway **always validates** on migrate (`validate-on-migrate=true`) — there is no local profile that skips checksum checks. If you hit a checksum mismatch on an old volume, use [repair-flyway](../../scripts/repair-flyway.bat) (dev only) or wipe `clearread_clearread_pg` — see [troubleshooting](./troubleshooting.md#flyway-checksum-mismatch-api-crash-on-boot).
+
 ## Access model
 
 - **Local:** Keycloak realm import seeds `admin`/`admin`, `user`/`user`, `demo`/`demo`; self-registration enabled; SPA **Create account** + demo credential panel (`CLEARREAD_SHOW_DEMO_ACCOUNTS`).
