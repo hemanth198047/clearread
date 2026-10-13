@@ -1,7 +1,15 @@
-# ClearRead ![version](https://img.shields.io/badge/version-v1.1.2-1e293b)
+# ClearRead ![version](https://img.shields.io/badge/version-v1.1.3-1e293b)
 
-**ClearRead v1.0.8** (temporary product name; branding is configurable).  
+**ClearRead v1.1.3** (temporary product name; branding is configurable).  
 Turns Markdown and plain text into structured, accessible reading experiences — **preserves originals**, **no AI required** for the core path, and **honest format support** via a capability registry.
+
+**Repository:** target name [`hemanth198047/clearread`](https://github.com/hemanth198047/clearread) (rename from `mdbeautifier` in GitHub → Settings → General → Repository name if not done yet). After rename, clone with:
+
+```bash
+git clone https://github.com/hemanth198047/clearread.git
+```
+
+GitHub redirects the old URL; prefer the new name in docs and remotes (`git remote set-url origin https://github.com/hemanth198047/clearread.git`).
 
 ## Prerequisites
 
@@ -52,6 +60,16 @@ scripts\start-deps.bat
 ```
 
 Details: [docs/ops/compose-deps-fix.md](docs/ops/compose-deps-fix.md).
+
+### Flyway checksum mismatch?
+
+If the API crashes with `Migration checksum mismatch for migration version 1`, pull **v1.1.3+** (V1 restored) and restart. Still failing?
+
+```bat
+scripts\repair-flyway.bat
+```
+
+Or wipe the Postgres volume (dev only): `docker volume rm clearread_clearread_pg`. See [troubleshooting](docs/guides/troubleshooting.md#flyway-checksum-mismatch-api-crash-on-boot).
 
 ### Port conflicts
 
@@ -122,7 +140,7 @@ Stop scripts tear down only the Compose project named `clearread` (and optional 
 | `frontend/` | React + TypeScript + Vite SPA |
 | `backend/` | Java 21 + Spring Boot 4.1.1 modular monolith |
 | `infra/` | Docker Compose, Keycloak realm |
-| `scripts/` | start / stop / check / backup / restore (`.sh` + `.bat`) |
+| `scripts/` | start / stop / check / backup / restore / repair-flyway (`.sh` + `.bat`) |
 | `docs/` | Guides, phase exit packages, ops |
 | `examples/` | Sample Markdown / plain text / structured fixtures |
 | `schemas/` | Reserved for ClearDoc JSON Schema |

@@ -1,4 +1,58 @@
-# Troubleshooting (ClearRead v1.0.7)
+# Troubleshooting (ClearRead v1.1.3)
+
+## Flyway checksum mismatch (API crash on boot)
+
+Symptom in API logs:
+
+```text
+FlywayValidateException: Migration checksum mismatch for migration version 1
+Applied to database : 1045756829
+Resolved locally    : …
+```
+
+**Cause (v1.1.2):** `V1__baseline.sql` was edited after it had already been applied. Applied migrations must stay immutable; Rebeautifier demo branding belongs in `V7__rebeautifier_branding.sql` only. **v1.1.3** restores the original V1 seed so existing local DBs validate again. New installs still get Rebeautifier colors via V7 after V1.
+
+Spring Boot always keeps `spring.flyway.validate-on-migrate=true` (local and production). There is **no** silent repair in the app.
+
+### Prefer: pull v1.1.3+ and restart
+
+Most local DBs that still have the original applied checksum need **no** repair after upgrading — just restart API/Compose.
+
+### If validate still fails: repair (dev only)
+
+With Postgres up (`scripts\start-deps.bat` / `./scripts/start-deps.sh`):
+
+```bat
+scripts\repair-flyway.bat
+docker compose -p clearread -f infra\compose.yaml up -d api
+```
+
+```bash
+./scripts/repair-flyway.sh
+docker compose -p clearread -f infra/compose.yaml up -d api
+```
+
+This runs a one-shot `flyway/flyway` container against Compose Postgres and updates `flyway_schema_history` checksums to match the SQL in the repo. **Do not run against production.**
+
+### Nuclear (dev only): wipe Postgres volume
+
+Destroys local DB data:
+
+```bat
+docker compose -p clearread -f infra\compose.yaml stop api
+docker volume rm clearread_clearread_pg
+scripts\start-deps.bat
+start.bat
+```
+
+```bash
+docker compose -p clearread -f infra/compose.yaml stop api
+docker volume rm clearread_clearread_pg
+./scripts/start-deps.sh
+./scripts/start.sh
+```
+
+Volume name is `clearread_clearread_pg` (Compose project `clearread` + volume `clearread_pg`).
 
 ## Containers stuck in Created (Docker Desktop / WSL wedge)
 

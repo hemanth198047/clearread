@@ -1,4 +1,4 @@
-# ClearRead scripts matrix (v1.0.7)
+# ClearRead scripts matrix (v1.1.3)
 
 Green-path operators for local Compose. Prefer **Git Bash / WSL** on Windows when the Docker bridge is broken (host API fallback lives only in `start.sh`).
 
@@ -9,6 +9,7 @@ Green-path operators for local Compose. Prefer **Git Bash / WSL** on Windows whe
 | `start.sh` / `start.bat` | ✅ | ✅ (+ root `start.bat`) | Build + up Compose; **per-service deps**; fail fast on busy ports; wait for Keycloak (240s) then API health | **sh only** → host `bootRun` + Vite | n/a |
 | `start-deps.sh` / `start-deps.bat` | ✅ | ✅ | Deps only: **db → LocalStack(`minio`) → Keycloak**; timed `compose up`; fail if stuck in **Created**; per-service status + logs on failure | n/a | n/a |
 | `doctor.sh` / `doctor.bat` | ✅ | ✅ (+ root `doctor.bat`) | Docker running?, Compose V2, ports, **Created-stuck**, `compose ps`, last logs, next action | n/a | n/a |
+| `repair-flyway.sh` / `repair-flyway.bat` | ✅ | ✅ | **Dev only:** one-shot Flyway `repair` against Compose Postgres (checksum realign). Never use in production | n/a | n/a |
 | `stop.sh` / `stop.bat` | ✅ | ✅ (+ root `stop.bat`) | Tear down Compose project `clearread` (+ tracked host PIDs) | stops host PIDs if tracked | n/a |
 | `check.sh` / `check.bat` | ✅ | ✅ | Health, capabilities, branding, web, OIDC | n/a | n/a |
 | `backup.sh` / `backup.bat` | ✅ | ✅ (Compose pg_dump) | Postgres dump + MANIFEST | n/a | **`--with-objects`** on `.sh` (AWS CLI); `.bat` documents manual sync |
@@ -59,6 +60,20 @@ scripts\start-deps.bat
 ```
 
 See [compose-deps-fix](./compose-deps-fix.md#containers-stuck-in-created).
+
+### Flyway checksum mismatch (API crash)
+
+After **v1.1.3**, most local DBs recover by pulling and restarting. If validate still fails:
+
+```bat
+scripts\repair-flyway.bat
+```
+
+```bash
+./scripts/repair-flyway.sh
+```
+
+Or wipe Postgres only: `docker volume rm clearread_clearread_pg` (dev). Details: [troubleshooting — Flyway checksum mismatch](../guides/troubleshooting.md#flyway-checksum-mismatch-api-crash-on-boot).
 
 If `start.bat` never reaches a healthy API (Docker bridge), switch to:
 
