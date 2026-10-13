@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { apiBase } from "../api/client";
+import { apiBase, formatApiError } from "../api/client";
 
 export type Branding = {
   productName: string;
@@ -30,8 +30,12 @@ export function BrandingProvider({ children }: { children: ReactNode }) {
   const [branding, setBranding] = useState<Branding>(defaultBranding);
 
   useEffect(() => {
-    fetch(`${apiBase}/v1/branding/default`)
-      .then((r) => r.json())
+    const url = `${apiBase}/v1/branding/default`;
+    fetch(url)
+      .then(async (r) => {
+        if (!r.ok) throw new Error(r.statusText || `HTTP ${r.status}`);
+        return r.json();
+      })
       .then((data: Partial<Branding>) => {
         const next = { ...defaultBranding, ...data };
         setBranding(next);
@@ -42,8 +46,9 @@ export function BrandingProvider({ children }: { children: ReactNode }) {
         );
         document.title = next.productName || defaultBranding.productName;
       })
-      .catch(() => {
-        /* keep defaults offline */
+      .catch((err) => {
+        // Keep defaults offline; log actionable message for operators.
+        console.warn(formatApiError(err, "Branding"));
       });
   }, []);
 

@@ -20,7 +20,8 @@ if not defined CLEARREAD_KEYCLOAK_MGMT_PORT set CLEARREAD_KEYCLOAK_MGMT_PORT=900
 REM Default 5433 avoids Windows local Postgres already bound on 5432.
 if not defined CLEARREAD_DB_PORT set CLEARREAD_DB_PORT=5433
 if not defined CLEARREAD_S3_PORT set CLEARREAD_S3_PORT=9000
-if not defined VITE_API_BASE_URL set VITE_API_BASE_URL=http://localhost:%CLEARREAD_API_PORT%
+REM Empty = same-origin /v1 via nginx proxy. Set explicitly only for split deploys.
+if not defined VITE_API_BASE_URL set VITE_API_BASE_URL=
 if not defined VITE_OIDC_AUTHORITY set VITE_OIDC_AUTHORITY=http://localhost:%CLEARREAD_KEYCLOAK_PORT%/realms/clearread
 if not defined CLEARREAD_OIDC_ISSUER set CLEARREAD_OIDC_ISSUER=http://localhost:%CLEARREAD_KEYCLOAK_PORT%/realms/clearread
 if not defined CLEARREAD_CORS_ORIGINS set CLEARREAD_CORS_ORIGINS=http://localhost:%CLEARREAD_WEB_PORT%,http://localhost:3000

@@ -31,4 +31,37 @@ describe("ClearDocView", () => {
     expect(screen.getAllByRole("heading", { level: 1, name: /Sample/ }).length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("Hello body")).toBeTruthy();
   });
+
+  it("detailed segmentation still renders body content", () => {
+    render(
+      <ClearDocView
+        prefs={{ ...DEFAULT_PREFERENCES, segmentation: "detailed" }}
+        doc={{
+          metadata: { title: "Detailed doc" },
+          outline: [],
+          warnings: [],
+          body: [
+            {
+              type: "paragraph",
+              nodeId: "p1",
+              children: [{ type: "text", value: "Detailed body visible" }],
+              provenance: { kind: "inferred" },
+            },
+          ],
+        }}
+      />
+    );
+    expect(screen.getByText("Detailed body visible")).toBeTruthy();
+    expect(screen.getByText(/inferred/i)).toBeTruthy();
+  });
+
+  it("shows empty state only when body is truly empty", () => {
+    render(
+      <ClearDocView
+        prefs={{ ...DEFAULT_PREFERENCES, segmentation: "detailed" }}
+        doc={{ metadata: { title: "Empty" }, outline: [], warnings: [], body: [] }}
+      />
+    );
+    expect(screen.getByRole("status").textContent).toMatch(/No blocks to display/i);
+  });
 });

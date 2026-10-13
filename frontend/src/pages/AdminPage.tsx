@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from "react";
-import { apiFetch } from "../api/client";
+import { Link } from "react-router-dom";
+import { apiFetch, formatApiError } from "../api/client";
 import { useAuth } from "../auth/AuthProvider";
 
 type Settings = {
@@ -58,7 +59,7 @@ export function AdminPage() {
           setInvites(inv);
         }
       } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
+        setError(formatApiError(e, "Admin"));
       }
     })();
   }, [token]);
@@ -84,7 +85,7 @@ export function AdminPage() {
         /* clipboard may be unavailable */
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(formatApiError(err, "Invite"));
     }
   }
 
@@ -100,22 +101,64 @@ export function AdminPage() {
       setSettings(next);
       setMsg("Settings saved");
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(formatApiError(e, "Settings"));
     }
   }
 
+  if (auth.loading) {
+    return (
+      <section className="panel">
+        <div className="status-bar">
+          <span className="status-dot busy" />
+          <span>Checking session…</span>
+        </div>
+      </section>
+    );
+  }
+
   if (!auth.user && !auth.devBypass) {
-    return <p className="muted">Sign in as a workspace admin to manage settings.</p>;
+    return (
+      <section className="panel access-panel">
+        <h1>Workspace admin</h1>
+        <p className="muted">Sign in as a workspace admin to manage settings, invites, and jobs.</p>
+        <div className="access-actions">
+          <button type="button" onClick={() => void auth.login()}>
+            Sign in
+          </button>
+          <Link className="button secondary" to="/">
+            Home
+          </Link>
+        </div>
+      </section>
+    );
   }
 
   return (
     <section className="panel">
-      <h1>Workspace admin</h1>
-      <p className="muted">
-        Sharing policy, retention, upload limit, optional AI enrichment, invites, and job inspection.
-        {role ? ` Active role: ${role}.` : ""}
-      </p>
-      {error && <p role="alert">{error}</p>}
+      <div className="page-header" style={{ border: 0, padding: 0, margin: 0 }}>
+        <div>
+          <h1>Workspace admin</h1>
+          <p className="lede">
+            Sharing policy, retention, upload limit, optional AI enrichment, invites, and job inspection.
+            {role ? ` Active role: ${role}.` : ""}
+          </p>
+        </div>
+        <div className="page-header-actions">
+          <Link className="button secondary" to="/library">
+            Library
+          </Link>
+        </div>
+      </div>
+      <div className="status-bar">
+        <span className={`status-dot${error ? " err" : ""}`} />
+        <span>{tenantId ? `Tenant ${tenantId.slice(0, 8)}…` : "Loading tenant…"}</span>
+        <span className="muted">{role || "role pending"}</span>
+      </div>
+      {error && (
+        <p className="alert" role="alert">
+          {error}
+        </p>
+      )}
       {msg && <p className="status-line">{msg}</p>}
 
       {role === "admin" && (

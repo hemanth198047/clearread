@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { apiFetch } from "../api/client";
+import { apiFetch, formatApiError } from "../api/client";
 import { useAuth } from "../auth/AuthProvider";
 
 type InviteInfo = {
@@ -23,14 +23,19 @@ export function InvitePage() {
     if (!token) return;
     apiFetch(`/v1/invites/${token}`, null)
       .then((data) => setInvite(data as InviteInfo))
-      .catch((e) => setError(e instanceof Error ? e.message : String(e)));
+      .catch((e) => setError(formatApiError(e, "Invite")));
   }, [token]);
 
   return (
     <section className="panel access-panel">
-      <h1>Workspace invite</h1>
+      <div className="page-header" style={{ border: 0, padding: 0, margin: 0 }}>
+        <div>
+          <h1>Workspace invite</h1>
+          <p className="lede">Accept an invite by creating an account or signing in with the invited email.</p>
+        </div>
+      </div>
       {error && (
-        <p role="alert" className="status-line">
+        <p role="alert" className="alert">
           {error}
         </p>
       )}

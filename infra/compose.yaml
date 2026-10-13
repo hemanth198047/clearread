@@ -157,7 +157,8 @@ services:
       context: ../frontend
       dockerfile: Dockerfile
       args:
-        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8080}
+        # Empty = same-origin /v1 via nginx→api (fixes Failed to fetch when API host port remaps).
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-}
         VITE_OIDC_AUTHORITY: ${VITE_OIDC_AUTHORITY:-http://localhost:8081/realms/clearread}
         VITE_OIDC_CLIENT_ID: clearread-spa
         CLEARREAD_API_ORIGIN: ${CLEARREAD_API_ORIGIN:-http://localhost:8080}
