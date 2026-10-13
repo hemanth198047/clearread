@@ -97,6 +97,10 @@ export function ReaderPage() {
     } finally {
       setOriginalLoading(false);
     }
+    // Record open so Library sort "Recently opened" works (POST /v1/documents/{id}/opened).
+    void apiFetch(`/v1/documents/${docId}/opened`, accessToken, { method: "POST", body: "{}" }).catch(() => {
+      /* non-blocking — reading still works if mark-opened fails */
+    });
   }
 
   useEffect(() => {
