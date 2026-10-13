@@ -38,4 +38,21 @@ describe("segmentation", () => {
   it("detailed keeps full body", () => {
     expect(segmentBody(doc, "detailed")).toHaveLength(doc.body.length);
   });
+
+  it("detailed keeps unknown node types", () => {
+    const weird: ClearDoc = {
+      ...doc,
+      body: [{ type: "customWidget", nodeId: "x1" }, ...doc.body],
+    };
+    expect(segmentBody(weird, "detailed").some((n) => n.type === "customWidget")).toBe(true);
+  });
+
+  it("balanced falls back to full body when filter would empty a non-empty doc", () => {
+    const onlyUnknown: ClearDoc = {
+      ...doc,
+      body: [{ type: "mysteryBlock", nodeId: "m1" }],
+    };
+    expect(segmentBody(onlyUnknown, "balanced")).toHaveLength(1);
+    expect(segmentBody(onlyUnknown, "conservative")).toHaveLength(1);
+  });
 });

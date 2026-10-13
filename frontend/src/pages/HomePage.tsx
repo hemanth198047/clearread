@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { apiFetch } from "../api/client";
+import { Link, useNavigate } from "react-router-dom";
+import { apiFetch, formatApiError } from "../api/client";
 import { useAuth } from "../auth/AuthProvider";
 import { DEMO_ACCOUNTS, useBranding } from "../branding/BrandingProvider";
 
@@ -46,7 +46,9 @@ export function HomePage() {
   const [progress, setProgress] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [docs, setDocs] = useState<DocMeta[]>([]);
+  const [docsError, setDocsError] = useState<string | null>(null);
   const [capabilities, setCapabilities] = useState<Capabilities | null>(null);
+  const [apiReachable, setApiReachable] = useState<boolean | null>(null);
 
   const token = auth.getAccessToken();
   const signedIn = Boolean(auth.user || (auth.devBypass && token));
@@ -73,17 +75,28 @@ export function HomePage() {
       .then((data) => {
         const caps = data as Capabilities;
         setCapabilities(caps);
+        setApiReachable(true);
         const first = caps.formats?.find((f) => f.ingest === "supported");
         if (first?.formatId) setFormatId((prev) => prev || first.formatId);
       })
-      .catch(() => setCapabilities(null));
+      .catch((e) => {
+        setCapabilities(null);
+        setApiReachable(false);
+        setError(formatApiError(e, "Capabilities"));
+      });
   }, []);
 
   useEffect(() => {
     if (!signedIn || !token) return;
     apiFetch("/v1/documents", token)
-      .then((data) => setDocs(data as DocMeta[]))
-      .catch(() => setDocs([]));
+      .then((data) => {
+        setDocs(data as DocMeta[]);
+        setDocsError(null);
+      })
+      .catch((e) => {
+        setDocs([]);
+        setDocsError(formatApiError(e, "Recent documents"));
+      });
   }, [signedIn, token]);
 
   async function waitUntilReady(id: string, accessToken: string) {
@@ -105,9 +118,10 @@ export function HomePage() {
       return `${raw} — See Format support below or GET /v1/capabilities.`;
     }
     if (/quota exceeded/i.test(raw) || /PAYLOAD_TOO_LARGE/i.test(raw)) {
-      return `${raw} — Open an existing document from Recent below, or remove documents to free quota.`;
+      return `${raw} — Open an existing document from Recent, or remove documents to free quota.`;
     }
-    return raw;
+    if (/Cannot reach the ClearRead API/i.test(raw)) return raw;
+    return formatApiError(err);
   }
 
   function resetFileInput() {
@@ -201,200 +215,287 @@ export function HomePage() {
           Turn text-based files into a calm, structured reading experience — without rewriting your originals or
           requiring AI.
         </p>
+        <div className="hero-meta" aria-label="Product status">
+          <span className="chip">Preserve originals</span>
+          <span className="chip">No AI required</span>
+          <span className="chip">
+            API {apiReachable === null ? "…" : apiReachable ? "reachable" : "unreachable"}
+          </span>
+          {capabilities?.registryVersion ? (
+            <span className="chip">Registry {capabilities.registryVersion}</span>
+          ) : null}
+        </div>
       </section>
 
-      <section className="panel">
-        {!signedIn ? (
-          <div className="access-panel" data-testid="access-panel">
-            <h2>Get access</h2>
-            <p>
-              <strong>Sign in</strong> with an existing account, or <strong>Create account</strong> to register via the
-              local IdP (Keycloak self-registration). After signup you join the default Demo Workspace automatically.
-            </p>
-            <div className="access-actions">
-              <button type="button" onClick={() => void auth.login()}>
-                Sign in
-              </button>
-              <button type="button" className="secondary" onClick={() => void auth.register()} data-testid="create-account">
-                Create account
-              </button>
-            </div>
-            {branding.showDemoAccounts ? (
-              <div className="demo-accounts" data-testid="demo-accounts">
-                <h3>Demo accounts</h3>
-                <p className="muted">
-                  Local Compose stack only (hidden when <code>CLEARREAD_SHOW_DEMO_ACCOUNTS=false</code>). Keycloak console
-                  admin is separate: <code>admin</code> / <code>admin</code> on the master realm.
-                </p>
-                <ul>
-                  {DEMO_ACCOUNTS.map((a) => (
-                    <li key={a.username}>
-                      <code>{a.username}</code> / <code>{a.password}</code>
-                      <span className="muted"> — {a.role}</span>
-                    </li>
-                  ))}
-                </ul>
+      <div className="status-bar" role="status">
+        <span className={`status-dot${apiReachable === false ? " err" : apiReachable ? "" : " busy"}`} />
+        <span>
+          {auth.loading
+            ? "Checking session…"
+            : signedIn
+              ? `Signed in · ${docs.length} recent document${docs.length === 1 ? "" : "s"}`
+              : "Guest · sign in to ingest and reopen documents"}
+        </span>
+        <span className="muted">Day / Sepia / Night themes inside the reader</span>
+      </div>
+
+      <div className="workspace-grid">
+        <section className="panel">
+          {!signedIn ? (
+            <div className="access-panel" data-testid="access-panel">
+              <div className="page-header" style={{ border: 0, padding: 0, margin: 0 }}>
+                <div>
+                  <h2>Get access</h2>
+                  <p className="lede">
+                    Sign in with an existing account, or create an account via the local IdP. After signup you join the
+                    default Demo Workspace automatically.
+                  </p>
+                </div>
               </div>
-            ) : (
-              <p className="muted">Production access is via your organization IdP (OIDC SSO / invite).</p>
-            )}
-          </div>
-        ) : (
-          <>
-            <div className="tabs">
-              <button type="button" className={tab === "paste" ? "" : "secondary"} onClick={() => setTab("paste")}>
-                Paste
-              </button>
-              <button type="button" className={tab === "upload" ? "" : "secondary"} onClick={() => setTab("upload")}>
-                Upload
-              </button>
-              <button type="button" className={tab === "url" ? "" : "secondary"} onClick={() => setTab("url")}>
-                From URL
-              </button>
-            </div>
-
-            {tab === "paste" ? (
-              <form onSubmit={onPaste}>
-                <label>
-                  Title
-                  <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Optional title" />
-                </label>
-                <label>
-                  Format
-                  <select value={formatId} onChange={(e) => setFormatId(e.target.value)}>
-                    {(supportedFormats.length
-                      ? supportedFormats
-                      : [{ formatId: "markdown", displayName: "Markdown" }]
-                    ).map((f) => (
-                      <option key={f.formatId} value={f.formatId}>
-                        {f.displayName ?? f.formatId}
-                      </option>
+              <div className="access-actions">
+                <button type="button" onClick={() => void auth.login()}>
+                  Sign in
+                </button>
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={() => void auth.register()}
+                  data-testid="create-account"
+                >
+                  Create account
+                </button>
+                <Link className="button secondary" to="/library">
+                  Browse library
+                </Link>
+              </div>
+              {branding.showDemoAccounts ? (
+                <div className="demo-accounts" data-testid="demo-accounts">
+                  <h3>Demo accounts</h3>
+                  <p className="muted">
+                    Local Compose stack only (hidden when <code>CLEARREAD_SHOW_DEMO_ACCOUNTS=false</code>). Keycloak
+                    console admin is separate: <code>admin</code> / <code>admin</code> on the master realm.
+                  </p>
+                  <ul>
+                    {DEMO_ACCOUNTS.map((a) => (
+                      <li key={a.username}>
+                        <code>{a.username}</code> / <code>{a.password}</code>
+                        <span className="muted"> — {a.role}</span>
+                      </li>
                     ))}
-                  </select>
-                </label>
-                <label>
-                  Content
-                  <textarea value={content} onChange={(e) => setContent(e.target.value)} />
-                </label>
-                <p style={{ marginTop: "1rem" }}>
-                  <button type="submit" disabled={busy || !content.trim()}>
-                    {busy ? "Processing…" : "Read document"}
-                  </button>
+                  </ul>
+                </div>
+              ) : (
+                <p className="muted">Production access is via your organization IdP (OIDC SSO / invite).</p>
+              )}
+            </div>
+          ) : (
+            <>
+              <div className="page-header" style={{ border: 0, padding: 0, margin: 0 }}>
+                <div>
+                  <h2>Ingest</h2>
+                  <p className="lede">Paste, upload, or fetch a text file. Close the reader anytime — reopen from Recent or Library.</p>
+                </div>
+                <div className="page-header-actions">
+                  <Link className="button secondary" to="/library">
+                    Library
+                  </Link>
+                </div>
+              </div>
+
+              <div className="tabs" role="tablist" aria-label="Ingest method">
+                <button type="button" className={tab === "paste" ? "" : "secondary"} onClick={() => setTab("paste")}>
+                  Paste
+                </button>
+                <button type="button" className={tab === "upload" ? "" : "secondary"} onClick={() => setTab("upload")}>
+                  Upload
+                </button>
+                <button type="button" className={tab === "url" ? "" : "secondary"} onClick={() => setTab("url")}>
+                  From URL
+                </button>
+              </div>
+
+              {tab === "paste" ? (
+                <form className="form-stack" onSubmit={onPaste}>
+                  <label>
+                    Title
+                    <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Optional title" />
+                  </label>
+                  <label>
+                    Format
+                    <select value={formatId} onChange={(e) => setFormatId(e.target.value)}>
+                      {(supportedFormats.length
+                        ? supportedFormats
+                        : [{ formatId: "markdown", displayName: "Markdown" }]
+                      ).map((f) => (
+                        <option key={f.formatId} value={f.formatId}>
+                          {f.displayName ?? f.formatId}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Content
+                    <textarea value={content} onChange={(e) => setContent(e.target.value)} />
+                  </label>
+                  <p>
+                    <button type="submit" disabled={busy || !content.trim()}>
+                      {busy ? "Processing…" : "Read document"}
+                    </button>
+                  </p>
+                </form>
+              ) : null}
+
+              {tab === "upload" ? (
+                <form className="form-stack" onSubmit={onUpload}>
+                  <label>
+                    Title
+                    <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Optional title" />
+                  </label>
+                  <label>
+                    File (text-based formats, max 10 MiB)
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept={acceptAttr}
+                      onChange={(e) => {
+                        setFile(e.target.files?.[0] ?? null);
+                        setForceNewUpload(false);
+                      }}
+                    />
+                  </label>
+                  <label className="check" style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                    <input
+                      type="checkbox"
+                      checked={forceNewUpload}
+                      onChange={(e) => setForceNewUpload(e.target.checked)}
+                    />
+                    Upload as a new document even if identical content already exists
+                  </label>
+                  <p>
+                    <button type="submit" disabled={busy || !file}>
+                      {busy ? "Processing…" : "Upload & read"}
+                    </button>
+                  </p>
+                </form>
+              ) : null}
+
+              {tab === "url" ? (
+                <form className="form-stack" onSubmit={onUrl}>
+                  <label>
+                    Title
+                    <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Optional title" />
+                  </label>
+                  <label>
+                    Direct file URL (http/https)
+                    <input
+                      type="url"
+                      value={url}
+                      onChange={(e) => setUrl(e.target.value)}
+                      placeholder="https://example.com/path/to/file.json"
+                      required
+                    />
+                  </label>
+                  <p className="muted">
+                    SSRF-hardened fetch: private/metadata addresses blocked. Ordinary web pages are not scraped — use a
+                    raw file URL, or paste/upload instead.
+                  </p>
+                  <p>
+                    <button type="submit" disabled={busy || !url.trim()}>
+                      {busy ? "Fetching…" : "Fetch & read"}
+                    </button>
+                  </p>
+                </form>
+              ) : null}
+
+              {progress && (
+                <div className="status-bar">
+                  <span className="status-dot busy" />
+                  <span className="status-line">{progress}</span>
+                </div>
+              )}
+              {error && (
+                <p className="alert" role="alert">
+                  {error}
                 </p>
-              </form>
-            ) : null}
+              )}
+            </>
+          )}
 
-            {tab === "upload" ? (
-              <form onSubmit={onUpload}>
-                <label>
-                  Title
-                  <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Optional title" />
-                </label>
-                <label>
-                  File (text-based formats, max 10 MiB)
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept={acceptAttr}
-                    onChange={(e) => {
-                      setFile(e.target.files?.[0] ?? null);
-                      setForceNewUpload(false);
-                    }}
-                  />
-                </label>
-                <label className="check" style={{ marginTop: "0.75rem", display: "flex", gap: "0.5rem", alignItems: "center" }}>
-                  <input
-                    type="checkbox"
-                    checked={forceNewUpload}
-                    onChange={(e) => setForceNewUpload(e.target.checked)}
-                  />
-                  Upload as a new document even if identical content already exists
-                </label>
-                <p style={{ marginTop: "1rem" }}>
-                  <button type="submit" disabled={busy || !file}>
-                    {busy ? "Processing…" : "Upload & read"}
-                  </button>
-                </p>
-              </form>
-            ) : null}
-
-            {tab === "url" ? (
-              <form onSubmit={onUrl}>
-                <label>
-                  Title
-                  <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Optional title" />
-                </label>
-                <label>
-                  Direct file URL (http/https)
-                  <input
-                    type="url"
-                    value={url}
-                    onChange={(e) => setUrl(e.target.value)}
-                    placeholder="https://example.com/path/to/file.json"
-                    required
-                  />
-                </label>
-                <p className="muted" style={{ marginTop: "0.5rem" }}>
-                  SSRF-hardened fetch: private/metadata addresses blocked. Ordinary web pages are not scraped — use a
-                  raw file URL, or paste/upload instead.
-                </p>
-                <p style={{ marginTop: "1rem" }}>
-                  <button type="submit" disabled={busy || !url.trim()}>
-                    {busy ? "Fetching…" : "Fetch & read"}
-                  </button>
-                </p>
-              </form>
-            ) : null}
-
-            {progress && <p className="status-line muted">{progress}</p>}
-            {error && (
-              <p className="status-line" role="alert">
-                {error}
-              </p>
-            )}
-          </>
-        )}
-
-        <details className="capability-details" id="capabilities">
-          <summary>Format support{capabilities?.registryVersion ? ` (registry ${capabilities.registryVersion})` : ""}</summary>
-          <p className="muted">
-            Claims follow <code>GET /v1/capabilities</code>. Unsupported means unsupported — no silent fake support.
-          </p>
-          <ul className="capability-list">
-            {supportedFormats.map((f) => (
-              <li key={f.formatId}>
-                <strong>{f.displayName ?? f.formatId}</strong>
-                <span className="muted"> · ingestible</span>
-                {f.notes ? <div className="muted">{f.notes}</div> : null}
-              </li>
-            ))}
-            {unsupportedFormats.map((f) => (
-              <li key={f.formatId}>
-                <strong>{f.displayName ?? f.formatId}</strong>
-                <span className="muted"> · {f.ingest}</span>
-                {f.notes ? <div className="muted">{f.notes}</div> : null}
-              </li>
-            ))}
-          </ul>
-          {capabilities?.exports?.note ? <p className="muted">{capabilities.exports.note}</p> : null}
-        </details>
-
-        {docs.length > 0 && (
-          <div>
-            <h2>Recent in workspace</h2>
-            <ul>
-              {docs.map((d) => (
-                <li key={d.id}>
-                  <a href={`/documents/${d.id}`}>{d.title}</a>{" "}
-                  <span className="muted">
-                    ({d.formatId}, {d.status})
-                  </span>
+          <details className="capability-details" id="capabilities">
+            <summary>
+              Format support{capabilities?.registryVersion ? ` (registry ${capabilities.registryVersion})` : ""}
+            </summary>
+            <p className="muted">
+              Claims follow <code>GET /v1/capabilities</code>. Unsupported means unsupported — no silent fake support.
+            </p>
+            <ul className="capability-list">
+              {supportedFormats.map((f) => (
+                <li key={f.formatId}>
+                  <strong>{f.displayName ?? f.formatId}</strong>
+                  <span className="muted"> · ingestible</span>
+                  {f.notes ? <div className="muted">{f.notes}</div> : null}
+                </li>
+              ))}
+              {unsupportedFormats.map((f) => (
+                <li key={f.formatId}>
+                  <strong>{f.displayName ?? f.formatId}</strong>
+                  <span className="muted"> · {f.ingest}</span>
+                  {f.notes ? <div className="muted">{f.notes}</div> : null}
                 </li>
               ))}
             </ul>
+            {capabilities?.exports?.note ? <p className="muted">{capabilities.exports.note}</p> : null}
+          </details>
+        </section>
+
+        <aside className="side-rail" aria-label="Workspace shortcuts">
+          <div className="rail-card">
+            <h2>Recent in workspace</h2>
+            {docsError && (
+              <p className="alert" role="alert">
+                {docsError}
+              </p>
+            )}
+            {!signedIn && <p className="muted">Sign in to see recent documents and reopen them after close.</p>}
+            {signedIn && !docsError && docs.length === 0 && (
+              <p className="muted">No documents yet. Paste or upload to start reading.</p>
+            )}
+            {docs.length > 0 && (
+              <ul className="recent-list">
+                {docs.map((d) => (
+                  <li key={d.id}>
+                    <div className="library-item-main">
+                      <Link to={`/documents/${d.id}`}>{d.title || "Untitled"}</Link>
+                      <div className="library-meta muted">
+                        <span className="format-chip">{d.formatId}</span>
+                        <span>{d.status}</span>
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
-        )}
-      </section>
+          <div className="rail-card">
+            <h2>Reader modes</h2>
+            <p className="muted" style={{ margin: 0 }}>
+              Inside a document: Day, Sepia, and Night stay switchable. Structure: Conservative / Balanced / Detailed —
+              presentation only; originals are never mutated.
+            </p>
+          </div>
+          <div className="rail-card">
+            <h2>Quick links</h2>
+            <div className="access-actions">
+              <Link className="button secondary" to="/library">
+                Library
+              </Link>
+              <Link className="button secondary" to="/admin">
+                Admin
+              </Link>
+            </div>
+          </div>
+        </aside>
+      </div>
     </>
   );
 }

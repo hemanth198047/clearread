@@ -9,7 +9,8 @@ COPY . .
 # Normalize scripts if checked out on Windows
 RUN find . -name "*.sh" -exec sed -i 's/\r$//' {} + 2>/dev/null || true
 
-ARG VITE_API_BASE_URL=http://localhost:8080
+# Empty = same-origin /v1 via nginx proxy to `api` (avoids Failed to fetch on remapped ports).
+ARG VITE_API_BASE_URL=
 ARG VITE_OIDC_AUTHORITY=http://localhost:8081/realms/clearread
 ARG VITE_OIDC_CLIENT_ID=clearread-spa
 ARG CLEARREAD_API_ORIGIN=http://localhost:8080

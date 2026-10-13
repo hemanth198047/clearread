@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
-import { apiFetch } from "../api/client";
+import { apiFetch, formatApiError } from "../api/client";
 import { useAuth } from "../auth/AuthProvider";
 import type { ClearDoc } from "../reader/ClearDocView";
 import { EnrichmentReview } from "../reader/EnrichmentReview";
@@ -132,7 +132,7 @@ export function ReaderPage() {
         }
         await loadReady(id, token);
       } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : String(err));
+        if (!cancelled) setError(formatApiError(err, "Open document"));
       }
     })();
     return () => {
@@ -226,8 +226,32 @@ export function ReaderPage() {
     await refreshShareLinks();
   }
 
+  if (auth.loading) {
+    return (
+      <section className="panel">
+        <div className="status-bar">
+          <span className="status-dot busy" />
+          <span>Checking session…</span>
+        </div>
+      </section>
+    );
+  }
+
   if (!auth.user && !auth.devBypass) {
-    return <p className="muted">Sign in to view this document.</p>;
+    return (
+      <section className="panel access-panel">
+        <h1>Sign in required</h1>
+        <p className="muted">Sign in to view this document, then reopen it from Library or Recent anytime.</p>
+        <div className="access-actions">
+          <button type="button" onClick={() => void auth.login()}>
+            Sign in
+          </button>
+          <Link className="button secondary" to="/library">
+            Library
+          </Link>
+        </div>
+      </section>
+    );
   }
 
   if (error && meta && (meta.status === "failed" || meta.status === "cancelled" || !doc)) {
@@ -235,7 +259,7 @@ export function ReaderPage() {
     return (
       <section className="panel" role="alert">
         <h1>Processing {meta.status === "failed" || meta.status === "cancelled" ? meta.status : "issue"}</h1>
-        <p>{error}</p>
+        <p className="alert">{error}</p>
         {lastJobError ? <p className="muted">Last job error: {lastJobError}</p> : null}
         <p className="muted">
           Original checksum {meta.originalSha256?.slice(0, 16)}… — originals remain available for recovery.
@@ -269,19 +293,48 @@ export function ReaderPage() {
 
   if (error && !meta) {
     return (
-      <p role="alert">
-        {error} — <Link to="/">Back</Link>
-      </p>
+      <section className="panel" role="alert">
+        <h1>Could not open document</h1>
+        <p className="alert">{error}</p>
+        <div className="access-actions">
+          <Link className="button" to="/library">
+            Back to library
+          </Link>
+          <Link className="button secondary" to="/">
+            Home
+          </Link>
+          <button
+            type="button"
+            className="secondary"
+            onClick={() => {
+              setError(null);
+              setMeta(null);
+              setDoc(null);
+              // retrigger effect by toggling via reload of same id
+              window.location.assign(`/documents/${id}`);
+            }}
+          >
+            Retry
+          </button>
+        </div>
+      </section>
     );
   }
 
   if (!doc || !meta) {
-    return <p className="muted">{statusNote ?? "Loading reader…"}</p>;
+    return (
+      <section className="panel">
+        <div className="status-bar">
+          <span className="status-dot busy" />
+          <span>{statusNote ?? "Loading reader…"}</span>
+        </div>
+      </section>
+    );
   }
 
   return (
-    <>
-      <div className="org-actions">
+    <div className="reader-page">
+      <div className="org-actions reader-export-bar">
         {(exportFormats.length
           ? exportFormats
           : [
@@ -303,11 +356,11 @@ export function ReaderPage() {
         <button type="button" className="secondary" onClick={() => void openShare()}>
           Share / preview
         </button>
-        <p className="muted export-honesty" style={{ margin: 0, flexBasis: "100%" }}>
+        <span className="muted export-honesty">
           Generated from ClearDoc (<code>artifactKind=generated</code>
           {exportFormats[0]?.converterId ? `; e.g. ${exportFormats.map((c) => c.converterId).join(", ")}` : ""}).
-          Download original for byte-identical source. PDF is constrained text layout, not a print engine.
-        </p>
+          Download original for byte-identical source.
+        </span>
       </div>
 
       {shareOpen && (
@@ -387,26 +440,28 @@ export function ReaderPage() {
         </section>
       )}
 
-      <ReaderShell
-        meta={meta}
-        doc={doc}
-        originalText={originalText}
-        originalError={originalError}
-        originalLoading={originalLoading}
-        initialFindQuery={initialFind}
-        onDownloadOriginal={async () => {
-          if (!token) return;
-          const buf = (await apiFetch(`/v1/documents/${meta.id}/original`, token)) as ArrayBuffer;
-          const blob = new Blob([buf]);
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = url;
-          a.download = meta.title || "original";
-          a.click();
-          URL.revokeObjectURL(url);
-        }}
-        onReprocess={() => void onReprocess()}
-      />
+      <div className="reader-stage">
+        <ReaderShell
+          meta={meta}
+          doc={doc}
+          originalText={originalText}
+          originalError={originalError}
+          originalLoading={originalLoading}
+          initialFindQuery={initialFind}
+          onDownloadOriginal={async () => {
+            if (!token) return;
+            const buf = (await apiFetch(`/v1/documents/${meta.id}/original`, token)) as ArrayBuffer;
+            const blob = new Blob([buf]);
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = meta.title || "original";
+            a.click();
+            URL.revokeObjectURL(url);
+          }}
+          onReprocess={() => void onReprocess()}
+        />
+      </div>
       {token && (
         <EnrichmentReview
           documentId={meta.id}
@@ -427,6 +482,6 @@ export function ReaderPage() {
           {typeof acceptedOverlay.proposal.summary === "string" && <p>{acceptedOverlay.proposal.summary}</p>}
         </section>
       )}
-    </>
+    </div>
   );
 }

@@ -162,7 +162,12 @@ function Block({
     return <h6 id={id}>{children}</h6>;
   }
   if (type === "paragraph") {
-    return <p id={id}>{renderInlines(node.children as Inline[], query, currentHit, hitCounter)}</p>;
+    return (
+      <p id={id}>
+        {renderInlines(node.children as Inline[], query, currentHit, hitCounter)}
+        {showInferred && inferred && <span className="badge-inferred"> inferred</span>}
+      </p>
+    );
   }
   if (type === "codeBlock") {
     const language = node.language ? String(node.language) : undefined;
@@ -408,6 +413,11 @@ export function ClearDocView({
     return applyCollapse(segmented, collapsed);
   }, [doc, prefs.segmentation, collapsed]);
 
+  // Reset progressive reveal when doc or segmentation mode changes (Detailed must show content).
+  useEffect(() => {
+    setVisibleCount(Math.max(CHUNK, Math.min(body.length, CHUNK)));
+  }, [doc, prefs.segmentation, body.length]);
+
   const slice = body.slice(0, visibleCount);
 
   const onToggleCollapse = (id: string) => {
@@ -454,19 +464,27 @@ export function ClearDocView({
           </ul>
         </aside>
       )}
-      {slice.map((node, i) => (
-        <Block
-          key={String(node.nodeId ?? i)}
-          node={node}
-          query={query}
-          currentHit={currentHit}
-          hitCounter={hitCounter}
-          prefs={prefs}
-          collapsed={collapsed}
-          onToggleCollapse={onToggleCollapse}
-          showInferred={showInferred}
-        />
-      ))}
+      {body.length === 0 ? (
+        <p className="reader-empty" role="status">
+          No blocks to display for this segmentation mode
+          {prefs.segmentation !== "detailed" ? " — try Balanced or Detailed" : ""}. The document body is empty after
+          filtering, or the source had no structured content.
+        </p>
+      ) : (
+        slice.map((node, i) => (
+          <Block
+            key={String(node.nodeId ?? i)}
+            node={node}
+            query={query}
+            currentHit={currentHit}
+            hitCounter={hitCounter}
+            prefs={prefs}
+            collapsed={collapsed}
+            onToggleCollapse={onToggleCollapse}
+            showInferred={showInferred}
+          />
+        ))
+      )}
       {visibleCount < body.length && (
         <p style={{ fontFamily: "var(--reader-font-ui)", color: "var(--reader-muted)" }}>
           <button type="button" className="collapse-toggle" onClick={() => setVisibleCount(body.length)}>

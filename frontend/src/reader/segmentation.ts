@@ -5,23 +5,29 @@ import type { SegmentationMode } from "./preferences";
  * View-layer segmentation — never mutates stored ClearDoc / originals.
  * Conservative: headings + paragraphs + lists + code (MVP core)
  * Balanced: also blockquotes / thematic breaks
- * Detailed: full body including inferred badges emphasis
+ * Detailed: full body including inferred badges emphasis — never drops nodes
  */
 /** Always keep structured-data renderers; segmentation only filters prose chrome. */
 const STRUCTURED = ["dataTable", "treeNode", "formattedSource"] as const;
 
+const CORE_PROSE = ["heading", "paragraph", "bulletList", "orderedList", "codeBlock"] as const;
+const BALANCED_EXTRA = ["blockquote", "thematicBreak"] as const;
+
 export function segmentBody(doc: ClearDoc, mode: SegmentationMode): Record<string, unknown>[] {
-  const body = doc.body ?? [];
-  if (mode === "detailed") return body;
+  const body = Array.isArray(doc.body) ? doc.body : [];
+  // Detailed: always return the full body (including unknown / inferred node types).
+  if (mode === "detailed") return body.slice();
 
   const allow = new Set<string>([
-    ...(mode === "conservative"
-      ? ["heading", "paragraph", "bulletList", "orderedList", "codeBlock"]
-      : ["heading", "paragraph", "bulletList", "orderedList", "codeBlock", "blockquote", "thematicBreak"]),
+    ...CORE_PROSE,
+    ...(mode === "balanced" ? BALANCED_EXTRA : []),
     ...STRUCTURED,
   ]);
 
-  return body.filter((n) => allow.has(String(n.type)));
+  const filtered = body.filter((n) => allow.has(String(n?.type ?? "")));
+  // Safety: never render a blank reader when the source had content — fall back to full body.
+  if (filtered.length === 0 && body.length > 0) return body.slice();
+  return filtered;
 }
 
 export function segmentOutline(doc: ClearDoc, mode: SegmentationMode) {

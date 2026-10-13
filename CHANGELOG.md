@@ -5,6 +5,23 @@ All notable changes to ClearRead are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] — 2026-10-13
+
+### Fixed
+
+- **Failed to fetch / library reopen:** SPA defaults to same-origin `/v1` (Vite proxy + nginx→`api`). Compose web nginx proxies `/v1` and `/actuator` so remapped API host ports no longer break browser fetches. Network errors show actionable guidance (ports, start stack) instead of raw `TypeError: Failed to fetch`. Recent links use React Router `Link` (no hard-nav stale state).
+- **Stuck on Completing sign-in:** OIDC callback surfaces errors with Retry; successful callback uses full navigation so React Router leaves `/auth/callback`. Return-to path preserved across login/register.
+- **Detailed segmentation empty:** Detailed always returns the full body; Balanced/Conservative fall back to full body when a filter would incorrectly empty a non-empty document; empty state only when body is truly empty.
+- **Overlapping layout:** Reader uses a dedicated stage (export bar + isolated reader grid); app chrome hidden in reader/preview; sticky stacking/z-index cleaned up for mobile and desktop.
+
+### Changed
+
+- **UI revamp (dense chrome):** Projectly-inspired sidebar, sticky topbar, status bars, denser ingest/library/admin/invite/share surfaces. ClearRead forest/teal branding retained (not Projectly indigo). Reader Day/Sepia/Night tokens unchanged.
+
+### Added
+
+- Auth callback page with error + retry; API client `formatApiError` / same-origin base resolution; unit coverage for segmentation Detailed and API error formatting.
+
 ## [1.0.8] — 2026-10-12
 
 ### Fixed

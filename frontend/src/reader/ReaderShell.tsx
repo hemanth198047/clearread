@@ -211,8 +211,11 @@ export function ReaderShell({
 
       <div className="reader-toolbar" role="toolbar" aria-label="Reader tools">
         <div className="group">
-          <Link to="/" style={{ color: "var(--reader-accent)", textDecoration: "none", fontWeight: 600 }}>
+          <Link to="/library" style={{ color: "var(--reader-accent)", textDecoration: "none", fontWeight: 600 }}>
             ← Library
+          </Link>
+          <Link to="/" style={{ color: "var(--reader-muted)", textDecoration: "none", fontSize: "0.85rem" }}>
+            Ingest
           </Link>
           <span className="sep" />
           <strong style={{ fontFamily: "Fraunces, Georgia, serif" }}>{meta.title}</strong>
