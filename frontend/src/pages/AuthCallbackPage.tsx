@@ -11,6 +11,7 @@ export function AuthCallbackPage() {
   if (auth.loading) {
     return (
       <section className="panel auth-callback" aria-busy="true" aria-live="polite">
+        <p className="page-eyebrow">Authentication</p>
         <h1>Completing sign-in</h1>
         <p className="muted">Exchanging authorization code for a session…</p>
         <div className="status-bar">
@@ -24,6 +25,7 @@ export function AuthCallbackPage() {
   if (auth.authError) {
     return (
       <section className="panel auth-callback" role="alert">
+        <p className="page-eyebrow">Authentication</p>
         <h1>Sign-in could not complete</h1>
         <p className="status-line">{auth.authError}</p>
         <p className="muted">

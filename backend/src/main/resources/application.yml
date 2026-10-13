@@ -43,8 +43,8 @@ management:
 clearread:
   branding:
     product-name: ${CLEARREAD_PRODUCT_NAME:ClearRead}
-    primary-color: ${CLEARREAD_PRIMARY_COLOR:#1a5f4a}
-    secondary-color: ${CLEARREAD_SECONDARY_COLOR:#c4a35a}
+    primary-color: ${CLEARREAD_PRIMARY_COLOR:#1e293b}
+    secondary-color: ${CLEARREAD_SECONDARY_COLOR:#f59e0b}
     logo-url: ${CLEARREAD_LOGO_URL:}
     # Local/Compose default: show admin/user/demo credentials on the landing page. Set false in production.
     show-demo-accounts: ${CLEARREAD_SHOW_DEMO_ACCOUNTS:true}

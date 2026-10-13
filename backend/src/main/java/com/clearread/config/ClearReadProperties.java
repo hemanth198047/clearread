@@ -46,8 +46,8 @@ public class ClearReadProperties {
 
     public static class Branding {
         private String productName = "ClearRead";
-        private String primaryColor = "#1a5f4a";
-        private String secondaryColor = "#c4a35a";
+        private String primaryColor = "#1e293b";
+        private String secondaryColor = "#f59e0b";
         private String logoUrl = "";
         /** When true, SPA shows local demo account credentials (hide in production). */
         private boolean showDemoAccounts = true;

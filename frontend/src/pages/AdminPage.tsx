@@ -119,8 +119,13 @@ export function AdminPage() {
   if (!auth.user && !auth.devBypass) {
     return (
       <section className="panel access-panel">
-        <h1>Workspace admin</h1>
-        <p className="muted">Sign in as a workspace admin to manage settings, invites, and jobs.</p>
+        <div className="page-header" style={{ border: 0, padding: 0, margin: 0 }}>
+          <div>
+            <p className="page-eyebrow">Operators</p>
+            <h1>Workspace admin</h1>
+            <p className="lede">Sign in as a workspace admin to manage settings, invites, and jobs.</p>
+          </div>
+        </div>
         <div className="access-actions">
           <button type="button" onClick={() => void auth.login()}>
             Sign in
@@ -137,6 +142,7 @@ export function AdminPage() {
     <section className="panel">
       <div className="page-header" style={{ border: 0, padding: 0, margin: 0 }}>
         <div>
+          <p className="page-eyebrow">Operators</p>
           <h1>Workspace admin</h1>
           <p className="lede">
             Sharing policy, retention, upload limit, optional AI enrichment, invites, and job inspection.

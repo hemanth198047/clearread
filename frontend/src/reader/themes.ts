@@ -13,12 +13,16 @@ export type ThemeTokens = {
   toolbarBg: string;
 };
 
-/** Default ClearRead reader themes (D-THEME-1, 2026-10-10). */
+/**
+ * Default ClearRead reader themes (D-THEME-1).
+ * Accents lightly mapped toward Rebeautifier: Day keeps calm blue-slate,
+ * Sepia uses amber-adjacent warmth, Night keeps sky on slate surfaces.
+ */
 export const THEME_TOKENS: Record<ResolvedTheme, ThemeTokens> = {
   day: {
     bg: "#F9F6F0",
     text: "#2B2B2B",
-    accent: "#3B82F6",
+    accent: "#2563EB",
     muted: "#5C5C5C",
     border: "#D9D2C5",
     surface: "#F4F0EA",
@@ -28,7 +32,7 @@ export const THEME_TOKENS: Record<ResolvedTheme, ThemeTokens> = {
   sepia: {
     bg: "#EFE4D0",
     text: "#4A3B32",
-    accent: "#C05621",
+    accent: "#D97706",
     muted: "#6B5648",
     border: "#D4C2A5",
     surface: "#E6D7BC",
