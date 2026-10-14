@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.11] — 2026-10-14
+
+### Fixed
+
+- **External AI “not available” after saving key:** Saving an external provider + API key now auto-aligns workspace policy (`aiProviderId=external`, `aiAllowExternal=true`, `aiLocalOnly=false`, `aiEnabled=true`) so enrichment status reports `providerAvailable=true` instead of staying stuck on Ollama/local-only.
+- **External availability requires API key:** `externalAvailable` / provider availability for external now requires a saved key (URL alone is not enough).
+- **Policy-block messaging:** Enrichment status exposes `providerBlockedByPolicy` + `availabilityMessage` when local-only / allow-external blocks an otherwise configured external provider.
+
+### Added
+
+- **Test connection:** `POST /v1/tenants/{id}/ai-connection/test` and Admin **Test connection** button return a clear success/failure message (Ollama `/api/tags`, OpenAI-family `/models`, Anthropic models list).
+- Admin UI guides policy checkboxes when enabling/selecting an external provider; mismatch banner if policy still blocks.
+
+### Tests
+
+- `saveExternalKey_autoAlignsPolicy_andProviderAvailable`, `localOnlyBlocksExternal_withActionableMessage`, `EnrichmentAvailabilityMessageTest`, `externalAvailableRequiresApiKey`, frontend policy-block EnrichmentReview case.
+
 ## [1.2.10] — 2026-10-14
 
 ### Added

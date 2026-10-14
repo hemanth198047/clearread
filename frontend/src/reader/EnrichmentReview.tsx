@@ -22,6 +22,9 @@ type AiStatus = {
   aiDailyQuota: number;
   documentReady: boolean;
   providerAvailable?: boolean;
+  providerConfigured?: boolean;
+  providerBlockedByPolicy?: boolean;
+  availabilityMessage?: string;
   providerModelId?: string;
   configurePath?: string;
   connection?: {
@@ -170,14 +173,17 @@ export function EnrichmentReview({ documentId, token, sourceOutline, acceptedOve
       <div className="status-bar">
         <span className={`status-dot${status.providerAvailable === false ? " err" : ""}`} />
         <span>
-          {status.providerAvailable === false
-            ? `Provider '${status.aiProviderId}' is not available/configured`
-            : `Provider '${status.aiProviderId}' connected`}
+          {status.availabilityMessage ||
+            (status.providerAvailable === false
+              ? `Provider '${status.aiProviderId}' is not available/configured`
+              : `Provider '${status.aiProviderId}' connected`)}
         </span>
       </div>
       {providerMissing && (
         <p className="alert" role="status">
-          Configure Ollama URL/model or an external API key under Admin → AI provider connection.
+          {status.providerBlockedByPolicy
+            ? "External AI is blocked by workspace policy. Turn off Local-only, enable Allow sending content externally, and Save policy — or re-save the external AI connection to auto-align."
+            : "Configure Ollama URL/model or an external API key under Admin → AI provider connection."}
           <br />
           <Link className="button secondary" to={configureTo}>
             Configure AI provider

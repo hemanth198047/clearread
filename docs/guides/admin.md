@@ -33,6 +33,7 @@ Environment overrides (see `application.yml`):
 - Admin UI + `PUT /v1/tenants/{id}/settings` control `aiEnabled`, local-only, external allow, provider id, quotas.
 - **AI provider connection (v1.2.9+):** Admin → AI provider connection + `GET/PUT /v1/tenants/{id}/ai-connection` set Ollama base URL/model and external URL/model/API key. Keys are stored in Postgres and never echoed in full (`apiKeyHint` only). Env vars (`CLEARREAD_AI_*`) remain bootstrap/fallback.
 - **External provider presets (v1.2.10+):** Dropdown for OpenAI / Anthropic / Azure / Groq / OpenRouter / Custom fills endpoint + model; paste API key. Main app shows an **AI enabled** chip in the header (and Settings / Home) when workspace policy has enrichment on.
+- **External key → available (v1.2.11+):** Saving an external connection auto-aligns policy (provider=external, allow-external on, local-only off, AI enabled). Use **Test connection** (`POST /v1/tenants/{id}/ai-connection/test`) for a clear success/failure message. If policy still blocks external, enrichment status returns an actionable `availabilityMessage`.
 - Compose default Ollama URL from the API container: `http://host.docker.internal:11434` (see `infra/compose.yaml` + `.env.example`).
 - Global kill switches / env bootstrap: `CLEARREAD_AI_OLLAMA_ENABLED`, `CLEARREAD_AI_EXTERNAL_ENABLED` (default false). Prefer enabling via Admin connection settings for local demos.
 - Never enable `clearread.ai.log-document-content` in production.
