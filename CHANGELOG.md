@@ -5,6 +5,12 @@ All notable changes to ClearRead are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Docs: canonical clone / remote URL is **`https://github.com/hemanth198047/clearread`**. Owner-only GitHub rename steps and `git remote set-url` note live in [docs/ops/repo-rename.md](docs/ops/repo-rename.md). Agents cannot rename (`HTTP 403`); Java package remains `com.clearread`.
+
 ## [1.1.3] — 2026-10-13
 
 ### Fixed
