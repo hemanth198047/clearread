@@ -33,6 +33,7 @@ public class DocumentService {
 
     private final DocumentRepository documents;
     private final ObjectStorageService storage;
+    private final ClearDocArtifactService clearDocArtifacts;
     private final TransformService transformService;
     private final CapabilityService capabilities;
     private final JobRepository jobs;
@@ -46,6 +47,7 @@ public class DocumentService {
     public DocumentService(
             DocumentRepository documents,
             ObjectStorageService storage,
+            ClearDocArtifactService clearDocArtifacts,
             TransformService transformService,
             CapabilityService capabilities,
             JobRepository jobs,
@@ -58,6 +60,7 @@ public class DocumentService {
     ) {
         this.documents = documents;
         this.storage = storage;
+        this.clearDocArtifacts = clearDocArtifacts;
         this.transformService = transformService;
         this.capabilities = capabilities;
         this.jobs = jobs;
@@ -141,6 +144,13 @@ public class DocumentService {
         DocumentRecord doc = getForRead(user, documentId);
         if (doc.originalObjectKey() == null) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Original not available to reprocess");
+        }
+        // Fail fast if the original bytes are gone from object storage (e.g. LocalStack volume wipe).
+        if (!storage.exists(doc.originalObjectKey())) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Original object missing from storage — re-upload or paste the file to rebuild ClearDoc"
+            );
         }
         UUID tenantId = TenantContext.requireTenantId();
         documents.updateStatus(tenantId, documentId, "queued");
@@ -303,12 +313,11 @@ public class DocumentService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Document not ready");
         }
         String key = documents.findCleardocKey(doc.tenantId(), doc.id(), doc.currentRevisionId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "ClearDoc missing"));
-        try {
-            return objectMapper.readValue(storage.getBytes(key), ClearDoc.class);
-        } catch (Exception e) {
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to read ClearDoc");
-        }
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "ClearDoc revision metadata missing — use Reprocess to rebuild"
+                ));
+        return clearDocArtifacts.read(key, documentId);
     }
 
     public List<Map<String, Object>> listRevisions(UserRecord user, UUID documentId) {
@@ -320,11 +329,7 @@ public class DocumentService {
         DocumentRecord doc = getForRead(user, documentId);
         String key = documents.findCleardocKey(doc.tenantId(), doc.id(), revisionId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Revision not found"));
-        try {
-            return objectMapper.readValue(storage.getBytes(key), ClearDoc.class);
-        } catch (Exception e) {
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to read ClearDoc");
-        }
+        return clearDocArtifacts.read(key, documentId);
     }
 
     @Transactional

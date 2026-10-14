@@ -33,11 +33,18 @@ function notifyLocalLibraryChanged(): void {
   window.dispatchEvent(new Event(LOCAL_LIBRARY_CHANGED_EVENT));
 }
 
-/** Module-level capabilities cache so Home/Library/Settings do not stampede /v1/capabilities. */
-let capabilitiesCache: { formats: CapabilityFormat[]; at: number; source: "api" | "fallback" } | null =
-  null;
-let capabilitiesInflight: Promise<{ formats: CapabilityFormat[]; source: "api" | "fallback" }> | null =
-  null;
+/** Module-level capabilities cache so Home/Library/Reader/Settings do not stampede /v1/capabilities. */
+let capabilitiesCache: {
+  formats: CapabilityFormat[];
+  data: Capabilities | null;
+  at: number;
+  source: "api" | "fallback";
+} | null = null;
+let capabilitiesInflight: Promise<{
+  formats: CapabilityFormat[];
+  data: Capabilities | null;
+  source: "api" | "fallback";
+}> | null = null;
 const CAPABILITIES_TTL_MS = 60_000;
 
 export function clearCapabilitiesCacheForTests(): void {
@@ -45,10 +52,22 @@ export function clearCapabilitiesCacheForTests(): void {
   capabilitiesInflight = null;
 }
 
-async function loadFormatsCached(): Promise<{ formats: CapabilityFormat[]; source: "api" | "fallback" }> {
+/**
+ * Shared GET /v1/capabilities with TTL + in-flight dedupe.
+ * Home, Library, and Reader must use this instead of raw apiFetch to avoid duplicate network calls.
+ */
+export async function fetchCapabilitiesCached(): Promise<{
+  formats: CapabilityFormat[];
+  data: Capabilities | null;
+  source: "api" | "fallback";
+}> {
   const now = Date.now();
   if (capabilitiesCache && now - capabilitiesCache.at < CAPABILITIES_TTL_MS) {
-    return { formats: capabilitiesCache.formats, source: capabilitiesCache.source };
+    return {
+      formats: capabilitiesCache.formats,
+      data: capabilitiesCache.data,
+      source: capabilitiesCache.source,
+    };
   }
   if (capabilitiesInflight) return capabilitiesInflight;
 
@@ -57,23 +76,33 @@ async function loadFormatsCached(): Promise<{ formats: CapabilityFormat[]; sourc
       const data = (await apiFetch("/v1/capabilities", null)) as Capabilities;
       const list = data.formats ?? [];
       if (list.length > 0) {
-        capabilitiesCache = { formats: list, at: Date.now(), source: "api" };
-        return { formats: list, source: "api" as const };
+        capabilitiesCache = { formats: list, data, at: Date.now(), source: "api" };
+        return { formats: list, data, source: "api" as const };
       }
       const fb = formatsForScan(null);
-      capabilitiesCache = { formats: fb.formats, at: Date.now(), source: "fallback" };
-      return fb;
+      capabilitiesCache = { formats: fb.formats, data: null, at: Date.now(), source: "fallback" };
+      return { formats: fb.formats, data: null, source: "fallback" as const };
     } catch {
       const fb = formatsForScan(null);
       // Shorter TTL on failure so we retry sooner when API recovers.
-      capabilitiesCache = { formats: fb.formats, at: Date.now() - CAPABILITIES_TTL_MS + 15_000, source: "fallback" };
-      return fb;
+      capabilitiesCache = {
+        formats: fb.formats,
+        data: null,
+        at: Date.now() - CAPABILITIES_TTL_MS + 15_000,
+        source: "fallback",
+      };
+      return { formats: fb.formats, data: null, source: "fallback" as const };
     } finally {
       capabilitiesInflight = null;
     }
   })();
 
   return capabilitiesInflight;
+}
+
+async function loadFormatsCached(): Promise<{ formats: CapabilityFormat[]; source: "api" | "fallback" }> {
+  const result = await fetchCapabilitiesCached();
+  return { formats: result.formats, source: result.source };
 }
 
 export function useLocalLibrary(autoScan: boolean) {

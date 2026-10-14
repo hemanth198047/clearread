@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { apiFetch, formatApiError } from "../api/client";
 import { useAuth } from "../auth/AuthProvider";
+import { fetchCapabilitiesCached } from "../library/useLocalLibrary";
 import type { ClearDoc } from "../reader/ClearDocView";
 import { EnrichmentReview } from "../reader/EnrichmentReview";
 import { ReaderShell } from "../reader/ReaderShell";
@@ -104,11 +105,11 @@ export function ReaderPage() {
   }
 
   useEffect(() => {
-    apiFetch("/v1/capabilities", null)
-      .then((data) => {
-        const converters = (data as { exports?: { converters?: { targetFormat: string; converterId: string }[] } })
-          ?.exports?.converters;
+    void fetchCapabilitiesCached()
+      .then((result) => {
+        const converters = result.data?.exports?.converters;
         if (converters?.length) setExportFormats(converters);
+        else setExportFormats([]);
       })
       .catch(() => setExportFormats([]));
   }, []);
