@@ -80,6 +80,10 @@ public class EnrichmentService {
         WorkspaceSettings ws = settings.getOrDefaults(doc.tenantId());
         return connectionConfig.withTenant(doc.tenantId(), () -> {
             AiProvider provider = providers.require(ws.aiProviderId());
+            boolean policyBlocksExternal = !provider.isLocal()
+                    && (ws.aiLocalOnly() || !ws.aiAllowExternal());
+            boolean configured = provider.isAvailable();
+            boolean available = configured && !policyBlocksExternal;
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("aiEnabled", ws.aiEnabled());
             m.put("aiLocalOnly", ws.aiLocalOnly());
@@ -89,13 +93,41 @@ public class EnrichmentService {
             m.put("usageToday", enrichments.usageToday(doc.tenantId()));
             m.put("providers", providers.list());
             m.put("documentReady", "ready".equals(doc.status()));
-            m.put("providerAvailable", provider.isAvailable());
+            m.put("providerAvailable", available);
+            m.put("providerConfigured", configured);
+            m.put("providerBlockedByPolicy", policyBlocksExternal);
+            m.put("availabilityMessage", availabilityMessage(ws, provider, configured, policyBlocksExternal));
             m.put("providerModelId", provider.modelId());
             m.put("providerLocal", provider.isLocal());
             m.put("connection", connectionConfig.toPublicMap(doc.tenantId()));
             m.put("configurePath", "/admin#ai-provider");
             return m;
         });
+    }
+
+    static String availabilityMessage(
+            WorkspaceSettings ws,
+            AiProvider provider,
+            boolean configured,
+            boolean policyBlocksExternal
+    ) {
+        if (!ws.aiEnabled()) {
+            return "AI enrichment is disabled. Enable it under Admin → Optional AI enrichment.";
+        }
+        if (policyBlocksExternal) {
+            return "External AI is blocked by workspace policy (turn off Local-only and enable Allow sending content externally). "
+                    + "Saving an external connection also auto-aligns these policy flags.";
+        }
+        if (!configured) {
+            if ("external".equals(provider.providerId())) {
+                return "External provider is not configured. Pick a provider, paste an API key, and save under Admin → AI provider connection.";
+            }
+            if ("ollama".equals(provider.providerId())) {
+                return "Ollama is not configured. Enable Ollama and set base URL/model under Admin → AI provider connection.";
+            }
+            return "AI provider '" + provider.providerId() + "' is not available/configured.";
+        }
+        return "Provider '" + provider.providerId() + "' connected.";
     }
 
     @Transactional
@@ -117,11 +149,15 @@ public class EnrichmentService {
             AiProvider provider = providers.require(ws.aiProviderId());
             if (!provider.isLocal() && (ws.aiLocalOnly() || !ws.aiAllowExternal())) {
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN,
-                        "External AI is not permitted by workspace policy (enable allow-external and disable local-only)");
+                        "External AI is blocked by workspace policy (turn off Local-only and enable Allow sending content externally). "
+                                + "Saving an external connection also auto-aligns these policy flags.");
             }
             if (!provider.isAvailable()) {
+                String hint = "external".equals(provider.providerId())
+                        ? " Pick a provider, paste an API key, and save under Admin → AI provider connection."
+                        : " Configure the provider under Admin → AI provider connection.";
                 throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
-                        "AI provider '" + provider.providerId() + "' is not available/configured");
+                        "AI provider '" + provider.providerId() + "' is not available/configured." + hint);
             }
             if (enrichments.usageToday(doc.tenantId()) >= ws.aiDailyQuota()) {
                 throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "Daily AI quota exceeded");

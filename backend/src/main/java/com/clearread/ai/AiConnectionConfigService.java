@@ -230,8 +230,14 @@ public class AiConnectionConfigService {
             return apiKey != null && !apiKey.isBlank();
         }
 
+        /**
+         * Available when enabled with a base URL and a saved API key.
+         * Cloud presets (OpenAI/Anthropic/etc.) require a key; without one enrichment cannot run.
+         */
         public boolean available() {
-            return enabled && baseUrl != null && !baseUrl.isBlank();
+            return enabled
+                    && baseUrl != null && !baseUrl.isBlank()
+                    && apiKeyConfigured();
         }
     }
 }

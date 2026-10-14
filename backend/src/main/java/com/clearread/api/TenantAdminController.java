@@ -1,6 +1,7 @@
 package com.clearread.api;
 
 import com.clearread.ai.AiConnectionConfigService;
+import com.clearread.ai.AiConnectionProbeService;
 import com.clearread.audit.AuditService;
 import com.clearread.identity.UserRecord;
 import com.clearread.jobs.JobRepository;
@@ -34,6 +35,7 @@ public class TenantAdminController {
     private final JdbcTemplate jdbc;
     private final WorkspaceSettingsRepository settings;
     private final AiConnectionConfigService aiConnection;
+    private final AiConnectionProbeService aiConnectionProbe;
     private final JobRepository jobs;
     private final AuditService audit;
     private final InviteRepository invites;
@@ -42,6 +44,7 @@ public class TenantAdminController {
             JdbcTemplate jdbc,
             WorkspaceSettingsRepository settings,
             AiConnectionConfigService aiConnection,
+            AiConnectionProbeService aiConnectionProbe,
             JobRepository jobs,
             AuditService audit,
             InviteRepository invites
@@ -49,6 +52,7 @@ public class TenantAdminController {
         this.jdbc = jdbc;
         this.settings = settings;
         this.aiConnection = aiConnection;
+        this.aiConnectionProbe = aiConnectionProbe;
         this.jobs = jobs;
         this.audit = audit;
         this.invites = invites;
@@ -204,7 +208,9 @@ public class TenantAdminController {
             String externalBaseUrl,
             String externalModel,
             String apiKey,
-            Boolean clearApiKey
+            Boolean clearApiKey,
+            /** When true (default), align workspace AI policy with the saved connection. */
+            Boolean alignPolicy
     ) {
     }
 
@@ -252,13 +258,119 @@ public class TenantAdminController {
                 body.apiKey(),
                 Boolean.TRUE.equals(body.clearApiKey())
         );
+        boolean alignPolicy = body.alignPolicy() == null || Boolean.TRUE.equals(body.alignPolicy());
+        Map<String, Object> policyAligned = Map.of();
+        if (alignPolicy) {
+            policyAligned = alignWorkspacePolicyToConnection(tenantId, actor.id());
+        }
         audit.record(actor.id(), "ai.connection.update", "tenant", tenantId.toString(),
                 Map.of(
                         "ollamaEnabled", ollamaEnabled,
                         "externalEnabled", externalEnabled,
-                        "apiKeyConfigured", aiConnection.external(tenantId).apiKeyConfigured()
+                        "apiKeyConfigured", aiConnection.external(tenantId).apiKeyConfigured(),
+                        "alignPolicy", alignPolicy
                 ));
-        return aiConnection.toPublicMap(tenantId);
+        Map<String, Object> result = new LinkedHashMap<>(aiConnection.toPublicMap(tenantId));
+        if (!policyAligned.isEmpty()) {
+            result.put("policyAligned", policyAligned);
+        }
+        return result;
+    }
+
+    public record AiConnectionTestRequest(String target) {
+    }
+
+    /**
+     * Probe Ollama or the external provider and return a clear success/failure message.
+     * Does not run enrichment or log secrets.
+     */
+    @PostMapping("/ai-connection/test")
+    Map<String, Object> testAiConnection(
+            HttpServletRequest request,
+            @PathVariable("tenantId") UUID tenantId,
+            @RequestBody(required = false) AiConnectionTestRequest body
+    ) {
+        UserRecord actor = MeController.requireUser(request);
+        requireAdmin(tenantId);
+        String target = body == null ? "auto" : body.target();
+        Map<String, Object> result = aiConnectionProbe.test(tenantId, target);
+        audit.record(actor.id(), "ai.connection.test", "tenant", tenantId.toString(),
+                Map.of("ok", result.get("ok"), "target", String.valueOf(result.getOrDefault("target", ""))));
+        return result;
+    }
+
+    /**
+     * When an external connection is fully configured, point workspace policy at it and
+     * open the allow-external / local-only gates so enrichment is not a dead end.
+     * When only Ollama is configured (no usable external), select the ollama provider.
+     */
+    private Map<String, Object> alignWorkspacePolicyToConnection(UUID tenantId, UUID actorId) {
+        var external = aiConnection.external(tenantId);
+        var ollama = aiConnection.ollama(tenantId);
+        WorkspaceSettings current = settings.getOrDefaults(tenantId);
+        String nextProvider = current.aiProviderId();
+        boolean nextLocalOnly = current.aiLocalOnly();
+        boolean nextAllowExternal = current.aiAllowExternal();
+        boolean nextEnabled = current.aiEnabled();
+
+        if (external.available()) {
+            nextProvider = "external";
+            nextLocalOnly = false;
+            nextAllowExternal = true;
+            nextEnabled = true;
+        } else if (ollama.available()) {
+            nextProvider = "ollama";
+            nextEnabled = true;
+        } else {
+            return Map.of(
+                    "changed", false,
+                    "aiEnabled", current.aiEnabled(),
+                    "aiProviderId", current.aiProviderId(),
+                    "aiLocalOnly", current.aiLocalOnly(),
+                    "aiAllowExternal", current.aiAllowExternal()
+            );
+        }
+
+        boolean changed = nextEnabled != current.aiEnabled()
+                || nextLocalOnly != current.aiLocalOnly()
+                || nextAllowExternal != current.aiAllowExternal()
+                || !nextProvider.equals(current.aiProviderId());
+        if (!changed) {
+            return Map.of(
+                    "changed", false,
+                    "aiEnabled", current.aiEnabled(),
+                    "aiProviderId", current.aiProviderId(),
+                    "aiLocalOnly", current.aiLocalOnly(),
+                    "aiAllowExternal", current.aiAllowExternal()
+            );
+        }
+
+        WorkspaceSettings next = new WorkspaceSettings(
+                tenantId,
+                current.sharingEnabled(),
+                current.anonymousPreviewEnabled(),
+                current.retentionDays(),
+                current.maxUploadBytes(),
+                current.maxDocuments(),
+                current.defaultExportDownload(),
+                nextEnabled,
+                nextLocalOnly,
+                nextAllowExternal,
+                nextProvider,
+                current.aiDailyQuota(),
+                current.aiMaxRetries()
+        );
+        settings.upsert(next);
+        audit.record(actorId, "workspace.settings_align_ai_connection", "tenant", tenantId.toString(),
+                Map.of("aiEnabled", next.aiEnabled(), "aiProviderId", next.aiProviderId(),
+                        "aiLocalOnly", next.aiLocalOnly(), "aiAllowExternal", next.aiAllowExternal()));
+        Map<String, Object> aligned = new LinkedHashMap<>();
+        aligned.put("changed", true);
+        aligned.put("aiEnabled", next.aiEnabled());
+        aligned.put("aiProviderId", next.aiProviderId());
+        aligned.put("aiLocalOnly", next.aiLocalOnly());
+        aligned.put("aiAllowExternal", next.aiAllowExternal());
+        return aligned;
     }
 
     @GetMapping("/branding")

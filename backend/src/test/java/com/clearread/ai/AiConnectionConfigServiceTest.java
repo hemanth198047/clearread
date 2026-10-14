@@ -73,6 +73,24 @@ class AiConnectionConfigServiceTest {
     }
 
     @Test
+    void externalAvailableRequiresApiKey() {
+        // No env fallback key — blank DB key must not count as available.
+        properties.getAi().getExternal().setApiKey("");
+        when(repository.find(tenantId)).thenReturn(Optional.of(new AiConnectionSettingsRepository.AiConnectionSettings(
+                tenantId, false, "http://o", "m",
+                true, "https://api.openai.com/v1/chat/completions", "", "gpt-4o-mini"
+        )));
+        assertThat(service.external(tenantId).available()).isFalse();
+        assertThat(service.external(tenantId).apiKeyConfigured()).isFalse();
+
+        when(repository.find(tenantId)).thenReturn(Optional.of(new AiConnectionSettingsRepository.AiConnectionSettings(
+                tenantId, false, "http://o", "m",
+                true, "https://api.openai.com/v1/chat/completions", "sk-test-key-9999", "gpt-4o-mini"
+        )));
+        assertThat(service.external(tenantId).available()).isTrue();
+    }
+
+    @Test
     void blankApiKeyKeepsExistingOnUpsert() {
         when(repository.find(tenantId)).thenReturn(Optional.of(new AiConnectionSettingsRepository.AiConnectionSettings(
                 tenantId, true, "http://ollama:11434", "m",

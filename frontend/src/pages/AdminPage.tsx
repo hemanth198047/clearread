@@ -76,6 +76,8 @@ export function AdminPage() {
   const [lastInviteUrl, setLastInviteUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  const [testBusy, setTestBusy] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
 
   useEffect(() => {
     if (!token) return;
@@ -148,6 +150,21 @@ export function AdminPage() {
 
   const externalPreset = useMemo(() => presetById(externalPresetId), [externalPresetId]);
 
+  /** Keep policy form in sync when the user commits to an external provider in the connection UI. */
+  function guidePolicyForExternal() {
+    setSettings((prev) =>
+      prev
+        ? {
+            ...prev,
+            aiProviderId: "external",
+            aiLocalOnly: false,
+            aiAllowExternal: true,
+            aiEnabled: true,
+          }
+        : prev
+    );
+  }
+
   function selectExternalPreset(id: ExternalProviderPresetId) {
     if (!aiConnection) return;
     setExternalPresetId(id);
@@ -160,12 +177,14 @@ export function AdminPage() {
     });
     setShowExternalAdvanced(next.expandAdvanced);
     setCustomModelDraft(false);
+    guidePolicyForExternal();
   }
 
   async function saveAiConnection() {
     if (!token || !tenantId || !aiConnection) return;
     setMsg(null);
     setError(null);
+    setTestResult(null);
     try {
       const body: Record<string, unknown> = {
         ollamaEnabled: aiConnection.ollamaEnabled,
@@ -175,6 +194,7 @@ export function AdminPage() {
         externalBaseUrl: aiConnection.externalBaseUrl,
         externalModel: aiConnection.externalModel,
         clearApiKey,
+        alignPolicy: true,
       };
       if (apiKeyDraft.trim()) {
         body.apiKey = apiKeyDraft.trim();
@@ -182,13 +202,56 @@ export function AdminPage() {
       const next = (await apiFetch(`/v1/tenants/${tenantId}/ai-connection`, token, {
         method: "PUT",
         body: JSON.stringify(body),
-      })) as AiConnection;
+      })) as AiConnection & {
+        policyAligned?: {
+          changed?: boolean;
+          aiEnabled?: boolean;
+          aiProviderId?: string;
+          aiLocalOnly?: boolean;
+          aiAllowExternal?: boolean;
+        };
+      };
       setAiConnection(next);
       setApiKeyDraft("");
       setClearApiKey(false);
-      setMsg("AI provider connection saved");
+      if (next.policyAligned?.changed) {
+        setSettings((prev) =>
+          prev
+            ? {
+                ...prev,
+                aiEnabled: Boolean(next.policyAligned?.aiEnabled),
+                aiProviderId: String(next.policyAligned?.aiProviderId || prev.aiProviderId),
+                aiLocalOnly: Boolean(next.policyAligned?.aiLocalOnly),
+                aiAllowExternal: Boolean(next.policyAligned?.aiAllowExternal),
+              }
+            : prev
+        );
+        setMsg(
+          `AI connection saved · policy aligned to ${next.policyAligned.aiProviderId} (AI enabled, external allowed)`
+        );
+      } else {
+        setMsg("AI provider connection saved");
+      }
     } catch (e) {
       setError(formatApiError(e, "AI connection"));
+    }
+  }
+
+  async function testAiConnection(target: "external" | "ollama" | "auto") {
+    if (!token || !tenantId) return;
+    setTestBusy(true);
+    setTestResult(null);
+    setError(null);
+    try {
+      const result = (await apiFetch(`/v1/tenants/${tenantId}/ai-connection/test`, token, {
+        method: "POST",
+        body: JSON.stringify({ target }),
+      })) as { ok: boolean; message: string };
+      setTestResult({ ok: Boolean(result.ok), message: result.message || (result.ok ? "OK" : "Failed") });
+    } catch (e) {
+      setTestResult({ ok: false, message: formatApiError(e, "Test connection") });
+    } finally {
+      setTestBusy(false);
     }
   }
 
@@ -336,7 +399,8 @@ export function AdminPage() {
           <h2 id="ai-provider">Optional AI enrichment</h2>
           <p className="muted">
             Disabled by default. Core reader works without AI. Derived enrichments only — source ClearDoc is never
-            silently mutated. External providers require explicit allow-external and local-only off.
+            silently mutated. Saving an external connection (provider + API key) auto-aligns policy: provider =
+            external, allow-external on, local-only off, AI enabled — so enrichment is not a dead end.
           </p>
           <div className="admin-grid">
             <label className="check">
@@ -456,7 +520,11 @@ export function AdminPage() {
                   <input
                     type="checkbox"
                     checked={aiConnection.externalEnabled}
-                    onChange={(e) => setAiConnection({ ...aiConnection, externalEnabled: e.target.checked })}
+                    onChange={(e) => {
+                      const on = e.target.checked;
+                      setAiConnection({ ...aiConnection, externalEnabled: on });
+                      if (on) guidePolicyForExternal();
+                    }}
                     disabled={role !== "admin"}
                   />
                   Enable external provider
@@ -586,10 +654,42 @@ export function AdminPage() {
               </details>
 
               {role === "admin" && (
-                <button type="button" onClick={() => void saveAiConnection()}>
-                  Save AI connection
-                </button>
+                <div className="ai-connection-actions">
+                  <button type="button" onClick={() => void saveAiConnection()}>
+                    Save AI connection
+                  </button>
+                  <button
+                    type="button"
+                    className="secondary"
+                    data-testid="ai-test-connection"
+                    disabled={testBusy}
+                    onClick={() => void testAiConnection(aiConnection.externalEnabled ? "external" : "auto")}
+                  >
+                    {testBusy ? "Testing…" : "Test connection"}
+                  </button>
+                </div>
               )}
+              {testResult && (
+                <p
+                  className={testResult.ok ? "status-bar" : "alert"}
+                  role="status"
+                  data-testid="ai-test-connection-result"
+                >
+                  <span className={`status-dot${testResult.ok ? "" : " err"}`} />
+                  {testResult.message}
+                </p>
+              )}
+              {settings &&
+                aiConnection.externalEnabled &&
+                (settings.aiProviderId !== "external" ||
+                  settings.aiLocalOnly ||
+                  !settings.aiAllowExternal) && (
+                  <p className="alert" role="status" data-testid="ai-policy-mismatch">
+                    Policy still blocks external enrichment (provider={settings.aiProviderId}, local-only=
+                    {String(settings.aiLocalOnly)}, allow-external={String(settings.aiAllowExternal)}). Save the
+                    AI connection to auto-align, or fix the policy checkboxes above and Save policy.
+                  </p>
+                )}
             </div>
           )}
         </>

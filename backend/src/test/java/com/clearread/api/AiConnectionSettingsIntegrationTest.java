@@ -131,6 +131,121 @@ class AiConnectionSettingsIntegrationTest {
         assertThat(statusAfter).contains("host.docker.internal");
     }
 
+    @Test
+    void saveExternalKey_autoAlignsPolicy_andProviderAvailable() throws Exception {
+        // Policy stuck on ollama + local-only — the reported dead-end after pasting an external key.
+        jdbc.update(
+                """
+                UPDATE workspace_settings SET ai_enabled = false, ai_local_only = true, ai_allow_external = false,
+                  ai_provider_id = 'ollama', ai_daily_quota = 50 WHERE tenant_id = ?
+                """,
+                tenantA
+        );
+
+        mockMvc.perform(put("/v1/tenants/" + tenantA + "/ai-connection")
+                        .with(adminJwt())
+                        .header("X-Tenant-Id", tenantA.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "ollamaEnabled": false,
+                                  "ollamaBaseUrl": "http://host.docker.internal:11434",
+                                  "ollamaModel": "llama3.2",
+                                  "externalEnabled": true,
+                                  "externalBaseUrl": "https://api.openai.com/v1/chat/completions",
+                                  "externalModel": "gpt-4o-mini",
+                                  "apiKey": "sk-live-external-key-1234",
+                                  "alignPolicy": true
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.externalAvailable").value(true))
+                .andExpect(jsonPath("$.apiKeyConfigured").value(true))
+                .andExpect(jsonPath("$.policyAligned.changed").value(true))
+                .andExpect(jsonPath("$.policyAligned.aiProviderId").value("external"))
+                .andExpect(jsonPath("$.policyAligned.aiEnabled").value(true))
+                .andExpect(jsonPath("$.policyAligned.aiLocalOnly").value(false))
+                .andExpect(jsonPath("$.policyAligned.aiAllowExternal").value(true));
+
+        mockMvc.perform(get("/v1/tenants/" + tenantA + "/settings")
+                        .with(adminJwt())
+                        .header("X-Tenant-Id", tenantA.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.aiProviderId").value("external"))
+                .andExpect(jsonPath("$.aiEnabled").value(true))
+                .andExpect(jsonPath("$.aiLocalOnly").value(false))
+                .andExpect(jsonPath("$.aiAllowExternal").value(true));
+
+        mockMvc.perform(get("/v1/documents/" + pasteDoc() + "/enrichments/status")
+                        .with(adminJwt())
+                        .header("X-Tenant-Id", tenantA.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.aiProviderId").value("external"))
+                .andExpect(jsonPath("$.providerAvailable").value(true))
+                .andExpect(jsonPath("$.providerBlockedByPolicy").value(false))
+                .andExpect(jsonPath("$.availabilityMessage").value(org.hamcrest.Matchers.containsString("connected")));
+
+        mockMvc.perform(post("/v1/tenants/" + tenantA + "/ai-connection/test")
+                        .with(adminJwt())
+                        .header("X-Tenant-Id", tenantA.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"target\":\"external\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").isString());
+    }
+
+    @Test
+    void localOnlyBlocksExternal_withActionableMessage() throws Exception {
+        mockMvc.perform(put("/v1/tenants/" + tenantA + "/ai-connection")
+                        .with(adminJwt())
+                        .header("X-Tenant-Id", tenantA.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "ollamaEnabled": false,
+                                  "ollamaBaseUrl": "http://host.docker.internal:11434",
+                                  "ollamaModel": "llama3.2",
+                                  "externalEnabled": true,
+                                  "externalBaseUrl": "https://api.openai.com/v1/chat/completions",
+                                  "externalModel": "gpt-4o-mini",
+                                  "apiKey": "sk-blocked-key-9999",
+                                  "alignPolicy": false
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.externalAvailable").value(true));
+
+        // Force policy into the blocked state (bypassing putSettings validation).
+        jdbc.update(
+                """
+                UPDATE workspace_settings SET ai_enabled = true, ai_local_only = true, ai_allow_external = false,
+                  ai_provider_id = 'external' WHERE tenant_id = ?
+                """,
+                tenantA
+        );
+
+        String status = mockMvc.perform(get("/v1/documents/" + pasteDoc() + "/enrichments/status")
+                        .with(adminJwt())
+                        .header("X-Tenant-Id", tenantA.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.providerConfigured").value(true))
+                .andExpect(jsonPath("$.providerBlockedByPolicy").value(true))
+                .andExpect(jsonPath("$.providerAvailable").value(false))
+                .andReturn().getResponse().getContentAsString();
+        assertThat(status).containsIgnoringCase("blocked by workspace policy");
+
+        var forbiddenResult = mockMvc.perform(post("/v1/documents/" + pasteDoc() + "/enrichments")
+                        .with(adminJwt())
+                        .header("X-Tenant-Id", tenantA.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"kind\":\"summary\"}"))
+                .andExpect(status().isForbidden())
+                .andReturn();
+        String combined = forbiddenResult.getResponse().getContentAsString()
+                + " " + String.valueOf(forbiddenResult.getResponse().getErrorMessage());
+        assertThat(combined.toLowerCase()).contains("blocked by workspace policy");
+    }
+
     private static org.springframework.test.web.servlet.request.RequestPostProcessor adminJwt() {
         return jwt().jwt(j -> j.subject("admin-ai")
                 .claim("preferred_username", "admin")

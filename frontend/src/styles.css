@@ -890,6 +890,13 @@ textarea {
   color: var(--text);
 }
 
+.ai-connection-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-top: 0.85rem;
+}
+
 .ai-external-grid .field-hint {
   display: block;
   margin-top: 0.25rem;

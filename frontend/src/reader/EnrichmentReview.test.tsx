@@ -54,6 +54,50 @@ describe("EnrichmentReview", () => {
     expect(screen.getByRole("button", { name: /Suggested headings/i }).hasAttribute("disabled")).toBe(true);
   });
 
+  it("shows actionable policy-block message for external", async () => {
+    apiFetch.mockImplementation(async (path: string) => {
+      if (path.includes("/enrichments/status")) {
+        return {
+          aiEnabled: true,
+          aiProviderId: "external",
+          usageToday: 0,
+          aiDailyQuota: 50,
+          documentReady: true,
+          providerAvailable: false,
+          providerConfigured: true,
+          providerBlockedByPolicy: true,
+          availabilityMessage:
+            "External AI is blocked by workspace policy (turn off Local-only and enable Allow sending content externally).",
+          configurePath: "/admin#ai-provider",
+        };
+      }
+      if (path.endsWith("/enrichments")) {
+        return [];
+      }
+      return {};
+    });
+
+    render(
+      <MemoryRouter>
+        <EnrichmentReview
+          documentId="doc-policy"
+          token="t"
+          sourceOutline={[]}
+          acceptedOverlay={null}
+          onAccepted={() => undefined}
+        />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getAllByText(/blocked by workspace policy/i).length).toBeGreaterThan(0);
+    });
+    expect(screen.getByRole("button", { name: /Suggested headings/i }).hasAttribute("disabled")).toBe(true);
+    expect(screen.getByRole("link", { name: /Configure AI provider/i }).getAttribute("href")).toBe(
+      "/admin#ai-provider"
+    );
+  });
+
   it("shows connected status when provider is available", async () => {
     apiFetch.mockImplementation(async (path: string) => {
       if (path.includes("/enrichments/status")) {
