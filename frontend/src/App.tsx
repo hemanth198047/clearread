@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { useAuth } from "./auth/AuthProvider";
 import { useBranding } from "./branding/BrandingProvider";
+import { LocalLibraryProvider } from "./library/LocalLibraryProvider";
 import { AdminPage } from "./pages/AdminPage";
 import { AuthCallbackPage } from "./pages/AuthCallbackPage";
 import { HomePage } from "./pages/HomePage";
@@ -39,6 +40,7 @@ export function App() {
 
   return (
     <ReaderPreferencesProvider>
+      <LocalLibraryProvider>
       <div
         className={`app-shell${chromeLess ? " app-shell-reader" : ""}${menuOpen ? " menu-open" : ""}`}
       >
@@ -201,6 +203,7 @@ export function App() {
           )}
         </div>
       </div>
+      </LocalLibraryProvider>
     </ReaderPreferencesProvider>
   );
 }

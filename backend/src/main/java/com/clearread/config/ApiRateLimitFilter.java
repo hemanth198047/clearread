@@ -31,7 +31,17 @@ public class ApiRateLimitFilter extends OncePerRequestFilter {
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getRequestURI();
-        return path.startsWith("/actuator/health") || path.equals("/v1/health");
+        // Health + cheap read-mostly bootstrap endpoints (SPA remounts / StrictMode).
+        // Still rate-limit document list/mutate paths that caused Recent "Too many requests".
+        if (path.startsWith("/actuator/health") || path.equals("/v1/health")) {
+            return true;
+        }
+        if ("GET".equalsIgnoreCase(request.getMethod())) {
+            if (path.equals("/v1/capabilities") || path.startsWith("/v1/branding/")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override

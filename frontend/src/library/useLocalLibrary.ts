@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { apiFetch } from "../api/client";
-import type { CapabilityFormat, Capabilities } from "./capabilities";
+import {
+  formatsForScan,
+  type CapabilityFormat,
+  type Capabilities,
+} from "./capabilities";
 import {
   ingestWebkitDirectoryFiles,
   scanAllPreferredFolders,
@@ -29,17 +33,62 @@ function notifyLocalLibraryChanged(): void {
   window.dispatchEvent(new Event(LOCAL_LIBRARY_CHANGED_EVENT));
 }
 
+/** Module-level capabilities cache so Home/Library/Settings do not stampede /v1/capabilities. */
+let capabilitiesCache: { formats: CapabilityFormat[]; at: number; source: "api" | "fallback" } | null =
+  null;
+let capabilitiesInflight: Promise<{ formats: CapabilityFormat[]; source: "api" | "fallback" }> | null =
+  null;
+const CAPABILITIES_TTL_MS = 60_000;
+
+export function clearCapabilitiesCacheForTests(): void {
+  capabilitiesCache = null;
+  capabilitiesInflight = null;
+}
+
+async function loadFormatsCached(): Promise<{ formats: CapabilityFormat[]; source: "api" | "fallback" }> {
+  const now = Date.now();
+  if (capabilitiesCache && now - capabilitiesCache.at < CAPABILITIES_TTL_MS) {
+    return { formats: capabilitiesCache.formats, source: capabilitiesCache.source };
+  }
+  if (capabilitiesInflight) return capabilitiesInflight;
+
+  capabilitiesInflight = (async () => {
+    try {
+      const data = (await apiFetch("/v1/capabilities", null)) as Capabilities;
+      const list = data.formats ?? [];
+      if (list.length > 0) {
+        capabilitiesCache = { formats: list, at: Date.now(), source: "api" };
+        return { formats: list, source: "api" as const };
+      }
+      const fb = formatsForScan(null);
+      capabilitiesCache = { formats: fb.formats, at: Date.now(), source: "fallback" };
+      return fb;
+    } catch {
+      const fb = formatsForScan(null);
+      // Shorter TTL on failure so we retry sooner when API recovers.
+      capabilitiesCache = { formats: fb.formats, at: Date.now() - CAPABILITIES_TTL_MS + 15_000, source: "fallback" };
+      return fb;
+    } finally {
+      capabilitiesInflight = null;
+    }
+  })();
+
+  return capabilitiesInflight;
+}
+
 export function useLocalLibrary(autoScan: boolean) {
   const [enabled, setEnabled] = useState(() => isLocalFolderLibraryEnabled());
   const [folders, setFolders] = useState<PreferredFolderRecord[]>([]);
   const [files, setFiles] = useState<ScannedLocalFile[]>([]);
   const [formats, setFormats] = useState<CapabilityFormat[] | null>(null);
+  const [formatsSource, setFormatsSource] = useState<"api" | "fallback" | null>(null);
   const [lastScanAt, setLastScanAt] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busyFolderId, setBusyFolderId] = useState<string | null>(null);
   const formatsRef = useRef<CapabilityFormat[] | null>(null);
   formatsRef.current = formats;
+  const autoScanStarted = useRef(false);
 
   const fsAccess = supportsDirectoryPicker();
   const webkitDir = supportsWebkitDirectory();
@@ -56,25 +105,23 @@ export function useLocalLibrary(autoScan: boolean) {
   }, []);
 
   const ensureFormats = useCallback(async (): Promise<CapabilityFormat[]> => {
-    if (formatsReadyForScan(formatsRef.current)) {
+    if (formatsReadyForScan(formatsRef.current) && (formatsRef.current?.length ?? 0) > 0) {
       return formatsRef.current ?? [];
     }
-    try {
-      const data = (await apiFetch("/v1/capabilities", null)) as Capabilities;
-      const list = data.formats ?? [];
-      setFormats(list);
-      formatsRef.current = list;
-      return list;
-    } catch {
-      const empty: CapabilityFormat[] = [];
-      setFormats(empty);
-      formatsRef.current = empty;
-      return empty;
-    }
+    const loaded = await loadFormatsCached();
+    setFormats(loaded.formats);
+    setFormatsSource(loaded.source);
+    formatsRef.current = loaded.formats;
+    return loaded.formats;
   }, []);
 
   useEffect(() => {
-    void ensureFormats().catch(() => setFormats([]));
+    void ensureFormats().catch(() => {
+      const fb = formatsForScan(null);
+      setFormats(fb.formats);
+      setFormatsSource(fb.source);
+      formatsRef.current = fb.formats;
+    });
   }, [ensureFormats]);
 
   useEffect(() => {
@@ -101,16 +148,21 @@ export function useLocalLibrary(autoScan: boolean) {
       setLastScanAt(result.lastScanAt);
       const scanErr = errorFromScanSummaries(result.summaries);
       if (scanErr) setError(scanErr);
+      else if (formatsSource === "fallback" || (fmt.length > 0 && capabilitiesCache?.source === "fallback")) {
+        setError(null);
+      }
       notifyLocalLibraryChanged();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setScanning(false);
     }
-  }, [enabled, ensureFormats]);
+  }, [enabled, ensureFormats, formatsSource]);
 
   useEffect(() => {
     if (!autoScan || !enabled || !formatsReadyForScan(formats)) return;
+    if (autoScanStarted.current) return;
+    autoScanStarted.current = true;
     void rescan();
   }, [autoScan, enabled, formats, rescan]);
 
@@ -146,10 +198,10 @@ export function useLocalLibrary(autoScan: boolean) {
       const scanned = await scanPreferredFolder(record, { formats: fmt });
       await setLastGlobalScanAt(scanned.summary.scannedAt);
       await reloadLists();
-      if (scanned.summary.error) {
+      if (scanned.summary.error && scanned.files.length === 0 && scanned.folder.inaccessible) {
         setError(scanned.summary.error);
-      } else if (fmt.length === 0) {
-        setError("Could not load format capabilities; file list may be incomplete. Try Re-scan after the API is up.");
+      } else if (scanned.summary.error && scanned.files.length === 0) {
+        setError(scanned.summary.error);
       }
       notifyLocalLibraryChanged();
     } catch (e) {
@@ -171,9 +223,6 @@ export function useLocalLibrary(autoScan: boolean) {
       const { folder } = await ingestWebkitDirectoryFiles("Selected folder", fileList, { formats: fmt });
       await reloadLists();
       if (folder.lastError) setError(folder.lastError);
-      else if (fmt.length === 0) {
-        setError("Could not load format capabilities; file list may be incomplete. Try Re-scan after the API is up.");
-      }
       notifyLocalLibraryChanged();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -203,6 +252,7 @@ export function useLocalLibrary(autoScan: boolean) {
     folders,
     files,
     formats,
+    formatsSource,
     lastScanAt,
     scanning,
     error,
@@ -217,3 +267,5 @@ export function useLocalLibrary(autoScan: boolean) {
     reloadLists,
   };
 }
+
+export type LocalLibraryApi = ReturnType<typeof useLocalLibrary>;

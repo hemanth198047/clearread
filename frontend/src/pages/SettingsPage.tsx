@@ -1,6 +1,6 @@
 import { useRef } from "react";
 import { Link } from "react-router-dom";
-import { useLocalLibrary } from "../library/useLocalLibrary";
+import { useSharedLocalLibrary } from "../library/LocalLibraryProvider";
 
 function formatScanTime(iso: string | null): string {
   if (!iso) return "Never";
@@ -15,7 +15,7 @@ function formatScanTime(iso: string | null): string {
 
 export function SettingsPage() {
   const webkitInputRef = useRef<HTMLInputElement>(null);
-  const lib = useLocalLibrary(false);
+  const lib = useSharedLocalLibrary();
 
   return (
     <section className="panel">
@@ -24,8 +24,8 @@ export function SettingsPage() {
           <p className="page-eyebrow">Workspace</p>
           <h1>Settings</h1>
           <p className="lede">
-            Preferred local folders for the Library file menu. Scans run in your browser — nothing is uploaded until you
-            open a file.
+            Preferred local folders for the Local files menu (Library and Ingest). Scans walk all subfolders in your
+            browser — nothing is uploaded until you open a file.
           </p>
         </div>
         <div className="page-header-actions">

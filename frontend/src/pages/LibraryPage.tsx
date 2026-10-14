@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { apiFetch, formatApiError } from "../api/client";
 import { useAuth } from "../auth/AuthProvider";
 import { LocalFileNav } from "../library/LocalFileNav";
-import { useLocalLibrary } from "../library/useLocalLibrary";
+import { useSharedLocalLibrary } from "../library/LocalLibraryProvider";
 
 type Doc = {
   id: string;
@@ -52,7 +52,7 @@ export function LibraryPage() {
   const [searchHits, setSearchHits] = useState<{ documentId: string; title: string; snippetHtml: string }[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const localLib = useLocalLibrary(Boolean(auth.user || auth.devBypass));
+  const localLib = useSharedLocalLibrary();
 
   async function load() {
     if (!token) return;
@@ -149,6 +149,7 @@ export function LibraryPage() {
         scanning={localLib.scanning}
         lastScanAt={localLib.lastScanAt}
         error={localLib.error}
+        formatsSource={localLib.formatsSource}
         onRescan={() => void localLib.rescan()}
       />
 

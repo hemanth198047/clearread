@@ -47,13 +47,13 @@ Production / enterprise: access is via your organization IdP (OIDC SSO or invite
 - **Library** lists workspace documents; search deep-links into reader find via `?q=`.
 - The **left file menu** lists readable files from preferred local folders (see below). Opening a file uploads it through the normal ingest pipeline (soft-dedup applies).
 
-## Preferred local folders (v1.2.1)
+## Preferred local folders (v1.2.2)
 
 Browse folders on your machine without auto-uploading everything:
 
 1. **Settings** → enable **Local folder library** → **Add folder…** (Chrome/Edge recommended).
-2. ClearRead **scans immediately** after you pick the folder (**Scanning…**, then last-scan time). Capability-supported text formats under **10 MiB** are listed (nothing is uploaded yet). No app restart required.
-3. Open **Library** → choose a file in the left menu → it opens in the reader when processing finishes. Library also re-scans on load.
+2. ClearRead **scans immediately** and **recursively through all subfolders** (**Scanning…**, then last-scan time). Capability-supported text formats under **10 MiB** are listed (nothing is uploaded yet). No app restart required.
+3. The **Local files** left menu appears on **Library** and **Ingest** after folders are configured. Choose a file → reader (API required to open; the list still works if the API is down).
 4. Use **Re-scan** to refresh; inaccessible folders show an error. Safari/Firefox may require re-adding the folder after reload.
 
 Details and browser limits: [folder-scan-library.md](../folder-scan-library.md).

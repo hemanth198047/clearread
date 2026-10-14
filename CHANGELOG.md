@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.2] — 2026-10-14
+
+### Fixed
+
+- **Left local file menu missing after scan:** Root cause — when `GET /v1/capabilities` failed (API down / 429), the scan filter index was empty so every file was dropped, and the vertical menu only mounted on Library (easy to miss after Settings). ClearRead now uses a client-side extension fallback, keeps the local list visible when the API is unreachable, and shows a persistent **Local files** rail on **Library** and **Ingest/Home** via a shared provider.
+- **Recent documents “Too many requests”:** Client cache + in-flight dedupe + exponential backoff on 429 for `GET /v1/documents`; rate-limit filter no longer counts bootstrap GETs (`/v1/capabilities`, `/v1/branding/*`).
+
+### Changed
+
+- Preferred-folder scans walk **all subfolders to the leaves** (max depth 20, max 5000 files, skip `node_modules` / `.git` / build dirs). Left menu groups by folder path.
+- Docs: [docs/folder-scan-library.md](docs/folder-scan-library.md) and user guide (v1.2.2).
+
 ## [1.2.1] — 2026-10-14
 
 ### Fixed
