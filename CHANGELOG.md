@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.1] — 2026-10-14
+
+### Fixed
+
+- **Scan on folder select:** After **Add folder…** (File System Access or `webkitdirectory` fallback), ClearRead scans immediately with a **Scanning…** state, updates last-scan time, and refreshes the Library left file menu — no wait for the next app start. Capability formats are loaded before filtering so the extension index is not empty. Permission / inaccessible errors surface in Settings. Startup and Library-load re-scan behavior unchanged.
+
+### Changed
+
+- Docs: [docs/folder-scan-library.md](docs/folder-scan-library.md) and user guide note instant scan-on-select (v1.2.1).
+
 ## [1.2.0] — 2026-10-14
 
 ### Added

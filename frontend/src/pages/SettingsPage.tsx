@@ -73,9 +73,9 @@ export function SettingsPage() {
             <button
               type="button"
               onClick={() => void lib.addFolderFsAccess()}
-              disabled={!lib.enabled || lib.busyFolderId !== null}
+              disabled={!lib.enabled || lib.busyFolderId !== null || lib.scanning}
             >
-              Add folder…
+              {lib.scanning && lib.busyFolderId === "new" ? "Scanning…" : "Add folder…"}
             </button>
           ) : null}
           {lib.webkitDir ? (
@@ -83,10 +83,14 @@ export function SettingsPage() {
               <button
                 type="button"
                 className={lib.fsAccess ? "secondary" : undefined}
-                disabled={!lib.enabled || lib.busyFolderId !== null}
+                disabled={!lib.enabled || lib.busyFolderId !== null || lib.scanning}
                 onClick={() => webkitInputRef.current?.click()}
               >
-                {lib.fsAccess ? "Add folder (fallback)…" : "Add folder…"}
+                {lib.scanning && lib.busyFolderId === "new"
+                  ? "Scanning…"
+                  : lib.fsAccess
+                    ? "Add folder (fallback)…"
+                    : "Add folder…"}
               </button>
               <input
                 ref={(el) => {
@@ -162,7 +166,7 @@ export function SettingsPage() {
           The ClearRead API container cannot see your PC disks unless you mount paths into Compose. Prefer the browser
           folder picker above. If you mount a volume (for example{" "}
           <code>./notes:/data/notes:ro</code> on the <code>api</code> service), operators may add server-side scan roots
-          in a future release — v1.2.0 documents the constraint only and does not claim Docker can browse the whole
+          in a future release — v1.2.x documents the constraint only and does not claim Docker can browse the whole
           machine.
         </p>
       </div>
