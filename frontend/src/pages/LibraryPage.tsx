@@ -117,24 +117,25 @@ export function LibraryPage() {
 
   if (!auth.user && !auth.devBypass) {
     return (
-      <section className="panel access-panel">
-        <div className="page-header" style={{ border: 0, padding: 0, margin: 0 }}>
-          <div>
-            <p className="page-eyebrow">Workspace</p>
-            <h1>Library</h1>
-            <p className="lede">Sign in to browse workspace documents, favorites, and full-text search.</p>
+      <section className="auth-stage">
+        <div className="auth-stage-panel access-panel">
+          <p className="page-eyebrow">Workspace</p>
+          <h1 className="auth-stage-brand">
+            ClearRead<span>.</span>
+          </h1>
+          <h2>Library</h2>
+          <p className="lede">Sign in to browse workspace documents, favorites, and full-text search.</p>
+          <div className="access-actions">
+            <button type="button" onClick={() => void auth.login()}>
+              Sign in
+            </button>
+            <button type="button" className="secondary" onClick={() => void auth.register()}>
+              Create account
+            </button>
+            <Link className="button secondary" to="/">
+              Home
+            </Link>
           </div>
-        </div>
-        <div className="access-actions">
-          <button type="button" onClick={() => void auth.login()}>
-            Sign in
-          </button>
-          <button type="button" className="secondary" onClick={() => void auth.register()}>
-            Create account
-          </button>
-          <Link className="button secondary" to="/">
-            Home
-          </Link>
         </div>
       </section>
     );

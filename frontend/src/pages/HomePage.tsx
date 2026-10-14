@@ -262,31 +262,47 @@ export function HomePage() {
       <div className="workspace-grid">
         <section className="panel">
           {!signedIn ? (
-            <div className="access-panel" data-testid="access-panel">
+            <div className="access-panel auth-entry" data-testid="access-panel">
               <div className="page-header" style={{ border: 0, padding: 0, margin: 0 }}>
                 <div>
-                  <h2>Get access</h2>
+                  <p className="page-eyebrow">Welcome</p>
+                  <h2 className="auth-entry-title">
+                    Sign in to ClearRead<span className="brand-dot">.</span>
+                  </h2>
                   <p className="lede">
-                    Sign in with an existing account, or create an account via the local IdP. After signup you join the
+                    Continue with your workspace account, or create one on the local IdP. After signup you join the
                     default Demo Workspace automatically.
                   </p>
                 </div>
               </div>
-              <div className="access-actions">
-                <button type="button" onClick={() => void auth.login()}>
-                  Sign in
-                </button>
-                <button
-                  type="button"
-                  className="secondary"
-                  onClick={() => void auth.register()}
-                  data-testid="create-account"
-                >
-                  Create account
-                </button>
-                <Link className="button secondary" to="/library">
-                  Browse library
-                </Link>
+              <div className="auth-entry-grid">
+                <div className="auth-entry-card">
+                  <h3>Open your workspace</h3>
+                  <p className="muted">OIDC sign-in via Keycloak — session stays on this install.</p>
+                  <div className="access-actions">
+                    <button type="button" onClick={() => void auth.login()}>
+                      Sign in
+                    </button>
+                    <button
+                      type="button"
+                      className="secondary"
+                      onClick={() => void auth.register()}
+                      data-testid="create-account"
+                    >
+                      Create account
+                    </button>
+                    <Link className="button secondary" to="/library">
+                      Browse library
+                    </Link>
+                  </div>
+                </div>
+                <aside className="auth-entry-aside" aria-label="What you get">
+                  <ul className="auth-entry-bullets">
+                    <li>Ingest paste, upload, and URL documents</li>
+                    <li>Library, search, and local folder rails</li>
+                    <li>Day / Sepia / Night reader with Structure modes</li>
+                  </ul>
+                </aside>
               </div>
               {branding.showDemoAccounts ? (
                 <div className="demo-accounts" data-testid="demo-accounts">

@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ClearDocView, countHits, type ClearDoc } from "./ClearDocView";
-import { fontFamilyCss, SCROLL_KEY_PREFIX, type ReaderPreferences } from "./preferences";
+import {
+  fontFamilyCss,
+  normalizeSegmentationMode,
+  SCROLL_KEY_PREFIX,
+  type ReaderPreferences,
+  type SegmentationMode,
+} from "./preferences";
 import { useReaderPreferences } from "./ReaderPreferencesProvider";
 import "./reader.css";
 import { segmentOutline, SEGMENTATION_LABELS } from "./segmentation";
@@ -89,7 +95,8 @@ export function ReaderShell({
   const location = useLocation();
   const navigate = useNavigate();
 
-  const outline = useMemo(() => segmentOutline(doc, prefs.segmentation), [doc, prefs.segmentation]);
+  const segmentation = normalizeSegmentationMode(prefs.segmentation);
+  const outline = useMemo(() => segmentOutline(doc, segmentation), [doc, segmentation]);
   const hitCount = useMemo(() => countHits(doc, query, prefs), [doc, query, prefs]);
 
   // Deep link + per-viewMode scroll restoration + library search handoff.
@@ -113,6 +120,13 @@ export function ReaderShell({
     const saved = sessionStorage.getItem(key);
     el.scrollTop = saved ? Number(saved) || 0 : 0;
   }, [location.hash, meta.id, doc, prefs.viewMode, initialFindQuery]);
+
+  // Structure mode changes must not leave the pane scrolled past new content (blank feel).
+  useEffect(() => {
+    const el = mainRef.current;
+    if (!el || prefs.viewMode !== "read") return;
+    el.scrollTop = 0;
+  }, [segmentation, prefs.viewMode, meta.id]);
 
   const onMainScroll = useCallback(() => {
     const el = mainRef.current;
@@ -255,8 +269,10 @@ export function ReaderShell({
           <label>
             Structure{" "}
             <select
-              value={prefs.segmentation}
-              onChange={(e) => setPrefs({ segmentation: e.target.value as ReaderPreferences["segmentation"] })}
+              value={segmentation}
+              onChange={(e) =>
+                setPrefs({ segmentation: normalizeSegmentationMode(e.target.value) as SegmentationMode })
+              }
               aria-label="Segmentation detail"
             >
               {Object.entries(SEGMENTATION_LABELS).map(([k, label]) => (
@@ -503,7 +519,7 @@ export function ReaderShell({
           {meta.formatId} · rev {meta.currentRevisionId?.slice(0, 8) || "—"} · sha256 {meta.originalSha256.slice(0, 12)}…
         </span>
         <span>
-          Theme {resolvedTheme} · {SEGMENTATION_LABELS[prefs.segmentation]} · {Math.round(progress)}% read
+          Theme {resolvedTheme} · {SEGMENTATION_LABELS[segmentation]} · {Math.round(progress)}% read
         </span>
       </div>
 

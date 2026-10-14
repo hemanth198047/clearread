@@ -39,6 +39,21 @@ export const DEFAULT_PREFERENCES: ReaderPreferences = {
 export const LOCAL_PREFS_KEY = "clearread.reader.preferences.v1";
 export const SCROLL_KEY_PREFIX = "clearread.reader.scroll.";
 
+/**
+ * Normalize Structure-control values from localStorage / server / mis-cased UI.
+ * Wrong keys (e.g. "Detailed") must still resolve so Detailed never blanks the reader.
+ */
+export function normalizeSegmentationMode(mode: unknown): SegmentationMode {
+  const raw = String(mode ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_-]+/g, "");
+  if (raw === "detailed" || raw === "detail" || raw === "full" || raw === "all") return "detailed";
+  if (raw === "balanced" || raw === "balance") return "balanced";
+  if (raw === "conservative" || raw === "minimal" || raw === "compact") return "conservative";
+  return DEFAULT_PREFERENCES.segmentation;
+}
+
 export function fontFamilyCss(id: FontFamilyId): string {
   switch (id) {
     case "literata":
@@ -53,7 +68,9 @@ export function fontFamilyCss(id: FontFamilyId): string {
 }
 
 export function mergePreferences(partial: Partial<ReaderPreferences> | null | undefined): ReaderPreferences {
-  return { ...DEFAULT_PREFERENCES, ...(partial ?? {}) };
+  const merged = { ...DEFAULT_PREFERENCES, ...(partial ?? {}) };
+  merged.segmentation = normalizeSegmentationMode(merged.segmentation);
+  return merged;
 }
 
 export function loadLocalPreferences(): ReaderPreferences {

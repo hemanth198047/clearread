@@ -243,16 +243,22 @@ export function ReaderPage() {
 
   if (!auth.user && !auth.devBypass) {
     return (
-      <section className="panel access-panel">
-        <h1>Sign in required</h1>
-        <p className="muted">Sign in to view this document, then reopen it from Library or Recent anytime.</p>
-        <div className="access-actions">
-          <button type="button" onClick={() => void auth.login()}>
-            Sign in
-          </button>
-          <Link className="button secondary" to="/library">
-            Library
-          </Link>
+      <section className="auth-stage">
+        <div className="auth-stage-panel access-panel">
+          <p className="page-eyebrow">Reader</p>
+          <h1 className="auth-stage-brand">
+            ClearRead<span>.</span>
+          </h1>
+          <h2>Sign in required</h2>
+          <p className="lede">Sign in to view this document, then reopen it from Library or Recent anytime.</p>
+          <div className="access-actions">
+            <button type="button" onClick={() => void auth.login()}>
+              Sign in
+            </button>
+            <Link className="button secondary" to="/library">
+              Library
+            </Link>
+          </div>
         </div>
       </section>
     );

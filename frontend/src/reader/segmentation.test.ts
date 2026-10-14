@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ClearDoc } from "./ClearDocView";
-import { segmentBody, segmentOutline } from "./segmentation";
+import { coerceBody, segmentBody, segmentOutline } from "./segmentation";
 
 const doc: ClearDoc = {
   metadata: { title: "T" },
@@ -47,6 +47,26 @@ describe("segmentation", () => {
     expect(segmentBody(weird, "detailed").some((n) => n.type === "customWidget")).toBe(true);
   });
 
+  it("detailed never empties a non-empty ClearDoc (regression)", () => {
+    const nonEmpty: ClearDoc = {
+      ...doc,
+      body: [
+        { type: "mysteryBlock", nodeId: "m1", children: [{ type: "text", value: "keep me" }] },
+        { type: "paragraph", nodeId: "p2", children: [{ type: "text", value: "also keep" }] },
+      ],
+    };
+    const out = segmentBody(nonEmpty, "detailed");
+    expect(out.length).toBeGreaterThan(0);
+    expect(out).toHaveLength(nonEmpty.body.length);
+    expect(coerceBody(nonEmpty).length).toBeGreaterThan(0);
+  });
+
+  it("detailed accepts mis-cased / aliased mode keys", () => {
+    expect(segmentBody(doc, "Detailed")).toHaveLength(doc.body.length);
+    expect(segmentBody(doc, "DETAIL")).toHaveLength(doc.body.length);
+    expect(segmentBody(doc, "full")).toHaveLength(doc.body.length);
+  });
+
   it("balanced falls back to full body when filter would empty a non-empty doc", () => {
     const onlyUnknown: ClearDoc = {
       ...doc,
@@ -54,5 +74,11 @@ describe("segmentation", () => {
     };
     expect(segmentBody(onlyUnknown, "balanced")).toHaveLength(1);
     expect(segmentBody(onlyUnknown, "conservative")).toHaveLength(1);
+  });
+
+  it("coerceBody tolerates non-array body", () => {
+    const broken = { ...doc, body: null as unknown as ClearDoc["body"] };
+    expect(coerceBody(broken)).toEqual([]);
+    expect(segmentBody(broken, "detailed")).toEqual([]);
   });
 });

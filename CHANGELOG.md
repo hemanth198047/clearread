@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.3] — 2026-10-14
+
+### Fixed
+
+- **Detailed segmentation blank page:** Structure → Detailed always keeps a non-empty ClearDoc body (mode-key normalization, empty-gate hardening, scroll reset on Structure change). Unit tests fail if Detailed empties a non-empty document.
+
+### Added
+
+- **Keycloak login theme** under `infra/keycloak/theme/clearread/` (Rebeautifier slate/amber, Fraunces/Literata) mounted in Compose; realm `loginTheme: clearread`.
+- Dense Rebeautifier-aligned SPA auth chrome for OIDC callback, landing sign-in, and signed-out Library/Reader/Admin/Invite gates.
+
+### Changed
+
+- Docs: verify path for Detailed + sign-in in release notes / store handoff.
+
 ## [1.2.2] — 2026-10-14
 
 ### Fixed

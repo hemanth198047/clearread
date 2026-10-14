@@ -1,0 +1,128 @@
+/* ClearRead Keycloak login — Rebeautifier slate/amber + Fraunces/Literata */
+@import url("https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,650&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=Newsreader:opsz,wght@6..72,500;6..72,600&display=swap");
+
+:root {
+  --cr-primary: #1e293b;
+  --cr-secondary: #334155;
+  --cr-accent: #f59e0b;
+  --cr-accent-soft: #fbbf24;
+  --cr-accent-deep: #d97706;
+  --cr-bg: #f8fafc;
+  --cr-bg-muted: #f1f5f9;
+  --cr-text: #0f172a;
+  --cr-text-muted: #475569;
+  --cr-border: rgba(15, 23, 42, 0.12);
+  --cr-radius: 16px;
+  --pf-v5-global--primary-color--100: var(--cr-primary);
+  --pf-v5-global--primary-color--200: var(--cr-secondary);
+  --pf-v5-global--link--Color: var(--cr-accent-deep);
+  --pf-v5-global--FontFamily--text: "Literata", Georgia, serif;
+  --pf-v5-global--FontFamily--heading: "Fraunces", "Times New Roman", serif;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  margin: 0 !important;
+  background:
+    radial-gradient(1100px 640px at 8% -8%, rgba(245, 158, 11, 0.16), transparent 55%),
+    radial-gradient(900px 520px at 92% 0%, rgba(30, 41, 59, 0.1), transparent 50%),
+    linear-gradient(180deg, #f8fafc 0%, #f1f5f9 55%, #eef2f7 100%) !important;
+  color: var(--cr-text) !important;
+  font-family: "Literata", Georgia, serif !important;
+}
+
+.login-pf body,
+.login-pf {
+  background: transparent !important;
+}
+
+#kc-header-wrapper,
+.kc-logo-text,
+#kc-page-title {
+  font-family: "Fraunces", "Times New Roman", serif !important;
+  color: var(--cr-text) !important;
+  letter-spacing: 0.01em;
+}
+
+#kc-header-wrapper::after {
+  content: ".";
+  color: var(--cr-accent);
+}
+
+.card-pf,
+.pf-v5-c-login__main,
+#kc-form-wrapper,
+.login-pf-page .card-pf {
+  background: rgba(255, 255, 255, 0.94) !important;
+  border: 1px solid var(--cr-border) !important;
+  border-radius: var(--cr-radius) !important;
+  box-shadow: 0 18px 40px -28px rgba(15, 23, 42, 0.35) !important;
+}
+
+.pf-v5-c-login__main-header,
+#kc-page-title {
+  border-bottom: 1px solid var(--cr-border);
+  padding-bottom: 0.65rem;
+}
+
+.pf-v5-c-form__label-text,
+label {
+  font-family: "Newsreader", Georgia, serif !important;
+  color: var(--cr-text-muted) !important;
+  letter-spacing: 0.02em;
+}
+
+.pf-v5-c-form-control,
+input[type="text"],
+input[type="password"],
+input[type="email"] {
+  border-radius: 12px !important;
+  border-color: var(--cr-border) !important;
+  background: #fff !important;
+}
+
+.pf-v5-c-button.pf-m-primary,
+#kc-login,
+input[type="submit"] {
+  background: linear-gradient(135deg, var(--cr-primary), var(--cr-secondary)) !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+  color: #f8fafc !important;
+  font-family: "Newsreader", Georgia, serif !important;
+  font-weight: 600 !important;
+  box-shadow: 0 10px 24px -16px rgba(30, 41, 59, 0.7);
+}
+
+.pf-v5-c-button.pf-m-primary:hover,
+#kc-login:hover,
+input[type="submit"]:hover {
+  filter: brightness(1.05);
+}
+
+a,
+#kc-registration span a,
+.pf-v5-c-login__main-footer-links a {
+  color: var(--cr-accent-deep) !important;
+}
+
+#kc-content-wrapper::before {
+  content: "ClearRead";
+  display: block;
+  font-family: "Newsreader", Georgia, serif;
+  font-size: 0.74rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--cr-accent-deep);
+  margin: 0 0 0.75rem;
+}
+
+.alert-error,
+.pf-v5-c-alert.pf-m-danger {
+  border-radius: 12px !important;
+  border-color: rgba(220, 38, 38, 0.25) !important;
+  background: rgba(254, 226, 226, 0.65) !important;
+}
