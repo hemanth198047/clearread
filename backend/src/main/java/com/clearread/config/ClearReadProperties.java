@@ -97,8 +97,17 @@ public class ClearReadProperties {
         private long maxUploadBytes = 10 * 1024 * 1024;
         private int maxNestingDepth = 64;
         private int maxCsvRows = 50_000;
-        /** Per-client IP HTTP requests per minute; 0 disables. */
-        private int apiRequestsPerMinute = 600;
+        /**
+         * Per-client IP limit for authenticated (Bearer) traffic that is not an exempted read.
+         * 0 disables. Local Compose defaults to 0 so single-user demos never 429 after folder scans.
+         * Production should set {@code CLEARREAD_API_RPM} (e.g. 600) or use the {@code prod} profile.
+         */
+        private int apiRequestsPerMinute = 0;
+        /**
+         * Stricter per-IP limit for unauthenticated public edges (preview, share resolve, invites).
+         * 0 disables. Independent of the authenticated limit.
+         */
+        private int publicApiRequestsPerMinute = 120;
 
         public long getMaxUploadBytes() {
             return maxUploadBytes;
@@ -130,6 +139,14 @@ public class ClearReadProperties {
 
         public void setApiRequestsPerMinute(int apiRequestsPerMinute) {
             this.apiRequestsPerMinute = apiRequestsPerMinute;
+        }
+
+        public int getPublicApiRequestsPerMinute() {
+            return publicApiRequestsPerMinute;
+        }
+
+        public void setPublicApiRequestsPerMinute(int publicApiRequestsPerMinute) {
+            this.publicApiRequestsPerMinute = publicApiRequestsPerMinute;
         }
     }
 

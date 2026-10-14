@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.4] — 2026-10-14
+
+### Fixed
+
+- **HTTP 429 after local folder scan:** Authenticated Library / document-open / search GETs are exempt from the per-IP rate limit when a Bearer token is present. Local Compose defaults `CLEARREAD_API_RPM=0` (unlimited authenticated traffic) so a single-user demo never 429s after scanning thousands of files. Unauthenticated public edges (preview / share / invites) keep `CLEARREAD_PUBLIC_API_RPM` (default 120). Production can set `CLEARREAD_API_RPM=600` or use `spring.profiles.active=prod`.
+- **Detailed segmentation hardening:** Coerce wrapped/`blocks`/`nodes`/stringified bodies; normalize mis-cased block types; Detailed ignores section collapse and reveals the full body immediately so Structure → Detailed never looks blank on a non-empty ClearDoc.
+
+### Changed
+
+- Rate-limit defaults and docs: [docs/folder-scan-library.md](docs/folder-scan-library.md), security guide, phase-6 performance notes, `.env.example`, `application-prod.yml`.
+
 ## [1.2.3] — 2026-10-14
 
 ### Fixed
