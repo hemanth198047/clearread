@@ -9,6 +9,7 @@ import { InvitePage } from "./pages/InvitePage";
 import { LibraryPage } from "./pages/LibraryPage";
 import { PreviewPage } from "./pages/PreviewPage";
 import { ReaderPage } from "./pages/ReaderPage";
+import { SettingsPage } from "./pages/SettingsPage";
 import { ReaderPreferencesProvider } from "./reader/ReaderPreferencesProvider";
 
 export function App() {
@@ -26,13 +27,15 @@ export function App() {
       ? "Ingest"
       : location.pathname.startsWith("/library")
         ? "Library"
-        : location.pathname.startsWith("/admin")
-          ? "Admin"
-          : location.pathname.startsWith("/invite")
-            ? "Invite"
-            : inAuthCallback
-              ? "Sign-in"
-              : "Workspace";
+        : location.pathname.startsWith("/settings")
+          ? "Settings"
+          : location.pathname.startsWith("/admin")
+            ? "Admin"
+            : location.pathname.startsWith("/invite")
+              ? "Invite"
+              : inAuthCallback
+                ? "Sign-in"
+                : "Workspace";
 
   return (
     <ReaderPreferencesProvider>
@@ -68,6 +71,12 @@ export function App() {
                   className={({ isActive }) => `topbar-nav-link${isActive ? " is-active" : ""}`}
                 >
                   Library
+                </NavLink>
+                <NavLink
+                  to="/settings"
+                  className={({ isActive }) => `topbar-nav-link${isActive ? " is-active" : ""}`}
+                >
+                  Settings
                 </NavLink>
                 <NavLink
                   to="/admin"
@@ -135,6 +144,9 @@ export function App() {
               <NavLink to="/library" onClick={() => setMenuOpen(false)}>
                 Library
               </NavLink>
+              <NavLink to="/settings" onClick={() => setMenuOpen(false)}>
+                Settings
+              </NavLink>
               <NavLink to="/admin" onClick={() => setMenuOpen(false)}>
                 Admin
               </NavLink>
@@ -166,6 +178,7 @@ export function App() {
             <Routes>
               <Route path="/" element={<HomePage />} />
               <Route path="/library" element={<LibraryPage />} />
+              <Route path="/settings" element={<SettingsPage />} />
               <Route path="/admin" element={<AdminPage />} />
               <Route path="/invite/:token" element={<InvitePage />} />
               <Route path="/documents/:id" element={<ReaderPage />} />

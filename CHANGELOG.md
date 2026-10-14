@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] — 2026-10-14
+
+### Added
+
+- **Local folder library:** Settings for preferred folders; client-side scan via File System Access API (Chrome/Edge) with `webkitdirectory` fallback; IndexedDB persistence for directory handles and file metadata.
+- **Library left file menu:** Vertical list of discovered files grouped by folder; open a file → existing upload ingest → reader (soft-dedup preserved). List-only until selection; 10 MiB default size filter; capability-registry extension/MIME matching.
+- Re-scan control, last scan time, inaccessible-folder errors, and empty states (no folders / permission denied / no matches).
+- Unit tests for file filter / capability matching; docs in [docs/folder-scan-library.md](docs/folder-scan-library.md) and user guide.
+
+### Notes
+
+- Browsers cannot silently scan arbitrary disks; Docker API sees only mounted volumes (documented; no server scan UI in v1.2.0).
+- Safari/Firefox: fallback picker — re-add folders after reload to refresh/open files.
+
 ## [1.1.4] — 2026-10-14
 
 ### Changed

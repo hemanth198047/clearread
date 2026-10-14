@@ -1,7 +1,7 @@
-# ClearRead ![version](https://img.shields.io/badge/version-v1.1.4-1e293b)
+# ClearRead ![version](https://img.shields.io/badge/version-v1.2.0-1e293b)
 
-**ClearRead v1.1.4** (temporary product name; branding is configurable).  
-Turns Markdown and plain text into structured, accessible reading experiences — **preserves originals**, **no AI required** for the core path, and **honest format support** via a capability registry.
+**ClearRead v1.2.0** (temporary product name; branding is configurable).  
+Turns Markdown and plain text into structured, accessible reading experiences — **preserves originals**, **no AI required** for the core path, and **honest format support** via a capability registry. Preferred local folders + Library file menu (browser File System Access).
 
 **Repository:** [`hemanth198047/clearread`](https://github.com/hemanth198047/clearread) (formerly `mdbeautifier`; GitHub redirects). Clone / remote notes: [docs/ops/repo-rename.md](docs/ops/repo-rename.md).
 
@@ -135,6 +135,7 @@ Stop scripts tear down only the Compose project named `clearread` (and optional 
 | Compose deps fix | [docs/ops/compose-deps-fix.md](docs/ops/compose-deps-fix.md) |
 | Keycloak startup | [docs/ops/keycloak-startup.md](docs/ops/keycloak-startup.md) |
 | Format support | [docs/format-support.md](docs/format-support.md) |
+| Folder scan library | [docs/folder-scan-library.md](docs/folder-scan-library.md) |
 | Security | [docs/guides/security.md](docs/guides/security.md) |
 | Operator runbook | [docs/phase-6/operator-runbook.md](docs/phase-6/operator-runbook.md) |
 | Changelog | [CHANGELOG.md](CHANGELOG.md) |

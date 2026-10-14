@@ -135,6 +135,11 @@ services:
       no_proxy: "db,minio,keycloak,localhost,127.0.0.1"
     ports:
       - "${CLEARREAD_API_PORT:-8080}:8080"
+    # Optional: mount host folders for a future server-side scan-roots feature.
+    # The API cannot see the host filesystem without an explicit volume. Example:
+    #   volumes:
+    #     - ${CLEARREAD_SERVER_SCAN_ROOT:-./notes}:/data/scan-roots/notes:ro
+    # Prefer the browser File System Access library (v1.2.0) for local folders.
     depends_on:
       db:
         condition: service_healthy
