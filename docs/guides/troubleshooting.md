@@ -1,4 +1,4 @@
-# Troubleshooting (ClearRead v1.1.3)
+# Troubleshooting (ClearRead v1.1.4)
 
 ## Flyway checksum mismatch (API crash on boot)
 

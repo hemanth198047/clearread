@@ -1,7 +1,7 @@
 # Phase 4 Exit Package
 
 **Status:** Complete — awaiting approval before Phase 5  
-**PR:** https://github.com/hemanth198047/mdbeautifier/pull/1  
+**PR:** https://github.com/hemanth198047/clearread/pull/1  
 **Branch:** `cursor/phase-1-vertical-slice-f2a6`
 
 ## 1. What works

@@ -1,14 +1,14 @@
-# ClearRead scripts matrix (v1.1.3)
+# ClearRead scripts matrix (v1.1.4)
 
 Green-path operators for local Compose. Prefer **Git Bash / WSL** on Windows when the Docker bridge is broken (host API fallback lives only in `start.sh`).
 
-**Repo remote:** after the owner renames GitHub `mdbeautifier` → `clearread`, point origin at the new name:
+**Repo remote:** prefer `https://github.com/hemanth198047/clearread.git` (formerly `mdbeautifier`):
 
 ```bash
 git remote set-url origin https://github.com/hemanth198047/clearread.git
 ```
 
-Full owner checklist: [repo-rename.md](./repo-rename.md).
+Rename / remote notes: [repo-rename.md](./repo-rename.md).
 
 **Windows root wrappers (v1.0.7+):** from the repo root you can run `stop.bat`, `start.bat`, and `doctor.bat` — they forward to `scripts\*.bat`.
 

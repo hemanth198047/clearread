@@ -2,7 +2,7 @@
 
 **Status:** Complete — awaiting approval before Phase 2  
 **Branch:** `cursor/phase-1-vertical-slice-f2a6`  
-**PR:** https://github.com/hemanth198047/mdbeautifier/pull/1
+**PR:** https://github.com/hemanth198047/clearread/pull/1
 
 ## 1. What works
 
