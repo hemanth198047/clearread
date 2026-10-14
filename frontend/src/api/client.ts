@@ -20,6 +20,12 @@ export function describeApiTarget(): string {
   return "same-origin /v1";
 }
 
+/** True when the API removed a document whose original object was gone (410 purge path). */
+export function isPurgedUnavailableDocument(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return /document removed|original was unavailable|410/i.test(msg);
+}
+
 /** Human-friendly message for network / API-down failures (not raw TypeError). */
 export function formatApiError(err: unknown, context?: string): string {
   const prefix = context ? `${context}: ` : "";

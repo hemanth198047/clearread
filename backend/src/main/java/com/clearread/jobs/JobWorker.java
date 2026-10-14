@@ -193,8 +193,9 @@ public class JobWorker {
 
         documentRepository.updateStatus(job.tenantId(), documentId, "processing");
         if (doc.originalObjectKey() == null || !storage.exists(doc.originalObjectKey())) {
+            documentRepository.softDelete(job.tenantId(), documentId);
             throw new IllegalStateException(
-                    "Original object missing from storage — cannot rebuild ClearDoc; re-upload the file"
+                    "Original object missing from storage — document removed from library"
             );
         }
         byte[] original = storage.getBytes(doc.originalObjectKey());

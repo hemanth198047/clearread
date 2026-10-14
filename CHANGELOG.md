@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.8] — 2026-10-14
+
+### Fixed
+
+- **Missing original → purge (not re-upload):** When the original object is gone from storage (e.g. LocalStack/S3 wipe), ClearRead **soft-deletes** the library row on list/open/reprocess/soft-dedup discovery instead of asking the user to replace-original. Reader shows a brief “removed unavailable document” state; Library no longer shows re-upload chips.
+- **Soft-dedup:** Same-file upload after a wipe purges the orphaned row and creates a **fresh** document (does not return the dead id as a successful duplicate).
+- **Reprocess:** Still available only when the original exists; missing original yields **410 Gone** after purge.
+
+### Removed
+
+- `POST /v1/documents/{id}/replace-original` and Reader/Library replace/re-upload recovery UX (supersedes the v1.2.7 approach).
+
+### Tests
+
+- `DocumentServiceClearDocReadTest`: GET/reprocess purge → 410; soft-dedup purge-then-fresh; in-flight URL fetch not purged; reprocess still enqueues when original exists.
+
 ## [1.2.7] — 2026-10-14
 
 ### Fixed
@@ -18,6 +34,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Tests
 
 - `DocumentServiceClearDocReadTest`: reprocess 409 points at replace-original; replace-original enqueues transform; soft-dedup restores missing original.
+
+> Superseded by **v1.2.8** (purge instead of replace-original).
 
 ## [1.2.6] — 2026-10-14
 

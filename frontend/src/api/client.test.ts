@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { describeApiTarget, formatApiError, resolveApiBase } from "./client";
+import {
+  describeApiTarget,
+  formatApiError,
+  isPurgedUnavailableDocument,
+  resolveApiBase,
+} from "./client";
 
 describe("formatApiError", () => {
   it("turns Failed to fetch into actionable guidance", () => {
@@ -11,6 +16,16 @@ describe("formatApiError", () => {
 
   it("passes through HTTP-style Error messages", () => {
     expect(formatApiError(new Error("quota exceeded"))).toBe("quota exceeded");
+  });
+});
+
+describe("isPurgedUnavailableDocument", () => {
+  it("detects 410 purge messages without treating them as re-upload prompts", () => {
+    expect(
+      isPurgedUnavailableDocument(new Error("Document removed — original was unavailable in storage"))
+    ).toBe(true);
+    expect(isPurgedUnavailableDocument(new Error("quota exceeded"))).toBe(false);
+    expect(isPurgedUnavailableDocument(new Error("replace-original"))).toBe(false);
   });
 });
 
