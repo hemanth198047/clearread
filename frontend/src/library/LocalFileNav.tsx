@@ -13,6 +13,10 @@ type Props = {
   lastScanAt: string | null;
   error: string | null;
   onRescan: () => void;
+  /** When capabilities came from client fallback (API down). */
+  formatsSource?: "api" | "fallback" | null;
+  /** Compact rail title for Ingest shell. */
+  title?: string;
 };
 
 function formatScanTime(iso: string | null): string {
@@ -32,6 +36,13 @@ function formatBytes(n: number): string {
   return `${(n / (1024 * 1024)).toFixed(1)} MiB`;
 }
 
+/** Parent directory path for grouping ("" = folder root). */
+function parentDir(relativePath: string): string {
+  const parts = relativePath.split("/").filter(Boolean);
+  if (parts.length <= 1) return "";
+  return parts.slice(0, -1).join("/");
+}
+
 export function LocalFileNav({
   folders,
   files,
@@ -40,6 +51,8 @@ export function LocalFileNav({
   lastScanAt,
   error,
   onRescan,
+  formatsSource = null,
+  title = "Local files",
 }: Props) {
   const auth = useAuth();
   const token = auth.getAccessToken();
@@ -71,7 +84,14 @@ export function LocalFileNav({
       const created = await openScannedFileInReader(entry, token);
       navigate(`/documents/${created.id}`);
     } catch (e) {
-      setOpenError(formatApiError(e, "Open file"));
+      const msg = formatApiError(e, "Open file");
+      if (/cannot reach|too many requests|rate[_ ]?limit/i.test(msg)) {
+        setOpenError(
+          `${msg} The local file list is available offline; opening into the reader needs a reachable API.`
+        );
+      } else {
+        setOpenError(msg);
+      }
     } finally {
       setOpeningId(null);
     }
@@ -79,9 +99,9 @@ export function LocalFileNav({
 
   if (!enabled) {
     return (
-      <aside className="local-file-nav" aria-label="Local folders">
+      <aside className="local-file-nav" aria-label="Local files">
         <div className="local-file-nav-head">
-          <h2>Local folders</h2>
+          <h2>{title}</h2>
         </div>
         <div className="local-file-empty">
           <p>Local folder library is off.</p>
@@ -94,9 +114,9 @@ export function LocalFileNav({
   }
 
   return (
-    <aside className="local-file-nav" aria-label="Local folders">
+    <aside className="local-file-nav" aria-label="Local files">
       <div className="local-file-nav-head">
-        <h2>Local folders</h2>
+        <h2>{title}</h2>
         <button type="button" className="secondary" onClick={onRescan} disabled={scanning}>
           {scanning ? "Scanning…" : "Re-scan"}
         </button>
@@ -105,7 +125,14 @@ export function LocalFileNav({
         Last scan: {formatScanTime(lastScanAt)}
         {folders.length ? ` · ${folders.length} folder${folders.length === 1 ? "" : "s"}` : ""}
         {files.length ? ` · ${files.length} file${files.length === 1 ? "" : "s"}` : ""}
+        {formatsSource === "fallback" ? " · offline filter" : ""}
       </p>
+
+      {scanning && folders.length === 0 && files.length === 0 ? (
+        <p className="muted local-file-none" role="status">
+          Scan in progress…
+        </p>
+      ) : null}
 
       {(error || openError) && (
         <p className="alert local-file-alert" role="alert">
@@ -116,7 +143,10 @@ export function LocalFileNav({
       {folders.length === 0 ? (
         <div className="local-file-empty">
           <p>No preferred folders configured.</p>
-          <p className="muted">Add folders in Settings. ClearRead lists matching files only — nothing is uploaded until you open one.</p>
+          <p className="muted">
+            Add folders in Settings. ClearRead lists matching files recursively — nothing is uploaded until you open
+            one.
+          </p>
           <p>
             <Link to="/settings">Open Settings</Link>
           </p>
@@ -126,6 +156,15 @@ export function LocalFileNav({
           {grouped.map(([folderId, group]) => {
             const folder = group.folder;
             const label = folder?.displayName ?? group.files[0]?.folderName ?? "Folder";
+            const byPath = new Map<string, ScannedLocalFile[]>();
+            for (const f of group.files) {
+              const dir = parentDir(f.relativePath);
+              const list = byPath.get(dir) ?? [];
+              list.push(f);
+              byPath.set(dir, list);
+            }
+            const pathEntries = [...byPath.entries()].sort(([a], [b]) => a.localeCompare(b));
+
             return (
               <div key={folderId} className="local-file-group">
                 <div className="local-file-group-label">
@@ -139,28 +178,39 @@ export function LocalFileNav({
                   )}
                 </div>
                 {folder?.lastError ? <p className="local-file-folder-error muted">{folder.lastError}</p> : null}
-                {group.files.length === 0 && !folder?.inaccessible ? (
-                  <p className="muted local-file-none">No matching files</p>
+                {scanning && group.files.length === 0 && !folder?.inaccessible ? (
+                  <p className="muted local-file-none">Scanning…</p>
+                ) : group.files.length === 0 && !folder?.inaccessible ? (
+                  <p className="muted local-file-none">No readable files found</p>
                 ) : (
-                  <ul>
-                    {group.files.map((f) => (
-                      <li key={f.id}>
-                        <button
-                          type="button"
-                          className="local-file-item"
-                          disabled={openingId === f.id}
-                          title={`${f.relativePath} (${formatBytes(f.size)})`}
-                          onClick={() => void onOpen(f)}
-                        >
-                          <span className="local-file-item-name">{f.name}</span>
-                          <span className="local-file-item-meta muted">
-                            {f.formatId ?? f.extension ?? "file"}
-                            {openingId === f.id ? " · opening…" : ""}
-                          </span>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
+                  pathEntries.map(([dir, dirFiles]) => (
+                    <div key={`${folderId}:${dir || "."}`} className="local-file-subdir">
+                      {dir ? (
+                        <p className="local-file-subdir-label muted" title={dir}>
+                          {dir}/
+                        </p>
+                      ) : null}
+                      <ul>
+                        {dirFiles.map((f) => (
+                          <li key={f.id}>
+                            <button
+                              type="button"
+                              className="local-file-item"
+                              disabled={openingId === f.id}
+                              title={`${f.relativePath} (${formatBytes(f.size)})`}
+                              onClick={() => void onOpen(f)}
+                            >
+                              <span className="local-file-item-name">{f.name}</span>
+                              <span className="local-file-item-meta muted">
+                                {f.formatId ?? f.extension ?? "file"}
+                                {openingId === f.id ? " · opening…" : ""}
+                              </span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))
                 )}
               </div>
             );

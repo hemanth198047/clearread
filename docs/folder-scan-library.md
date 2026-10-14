@@ -1,15 +1,21 @@
-# Local folder scan library (v1.2.1)
+# Local folder scan library (v1.2.2)
 
-ClearRead can list readable files from **user-chosen preferred folders** and open a selected file into the normal ingest → reader flow. Browsers cannot silently scan arbitrary disk paths; this feature uses web platform APIs on the client.
+ClearRead can list readable files from **user-chosen preferred folders** (recursively through subfolders) and open a selected file into the normal ingest → reader flow. Browsers cannot silently scan arbitrary disk paths; this feature uses web platform APIs on the client.
 
 ## Behavior
 
 1. **Settings → Local folder library** — add / remove preferred folders; toggle the feature; **Re-scan**.
-2. **Scan on select (v1.2.1)** — as soon as **Add folder…** succeeds (File System Access picker or `webkitdirectory` fallback), ClearRead scans that folder immediately, shows **Scanning…**, updates **Last scan** time, and refreshes the Library left file menu. You do **not** need to restart the app or wait for the next Library mount.
-3. **Startup / Library load** — when the Library page loads with the feature enabled, preferred folders are still re-scanned (same as v1.2.0).
-4. **Library** — left-hand vertical menu lists discovered files grouped by folder. Selecting a file uploads it through `POST /v1/documents/upload` (soft-dedup preserved) and opens the reader.
-5. Scans are **list-only** until the user opens a file. Default size filter: **10 MiB** (same as API `clearread.limits.max-upload-bytes`).
-6. Extensions / MIME types come from `GET /v1/capabilities` (`ingest: "supported"` only). Unsupported binaries are skipped. Post-select scans wait for (or fetch) capabilities so the filter index is not empty.
+2. **Scan on select** — as soon as **Add folder…** succeeds (File System Access picker or `webkitdirectory` fallback), ClearRead scans that folder **recursively to leaf directories**, shows **Scanning…**, updates **Last scan** time, and refreshes the left file menu. You do **not** need to restart the app.
+3. **Startup auto-scan** — a shared app-shell library provider re-scans preferred folders once on load (same recursive walk).
+4. **Left vertical file menu** — shown on **Library** and on **Ingest/Home** when folders are configured (or a scan is in progress). Files are grouped by preferred folder and subdirectory path. Selecting a file uploads it through `POST /v1/documents/upload` (soft-dedup preserved) and opens the reader.
+5. Scans are **list-only** until the user opens a file. Default size filter: **10 MiB**. Walk limits: **max depth 20**, **max 5000 files** per preferred root; skips `node_modules`, `.git`, `dist`, `build`, and other common ignore dirs.
+6. Extensions / MIME types come from `GET /v1/capabilities` when available. If the API is unreachable or rate-limited, ClearRead uses a **client-side fallback** extension list so the local menu still populates. Opening a file still requires a reachable API (clear error message).
+
+## API down / Recent documents
+
+- Local file menu stays visible when the API is down — do not hide the rail based on API health.
+- **Recent** on Home uses a short TTL cache, in-flight dedupe, and exponential backoff on HTTP 429 so remounts / StrictMode do not storm `GET /v1/documents`.
+- Server rate limit skips cheap bootstrap GETs (`/v1/capabilities`, `/v1/branding/*`, health) so SPA startups do not burn the documents quota.
 
 ## Browser support
 
@@ -24,24 +30,26 @@ ClearRead can list readable files from **user-chosen preferred folders** and ope
 Assume checkout at `D:\ProjectsPortfolio\clearread` and stack via `scripts\start.bat`.
 
 1. Open http://localhost:5173 → sign in (`user` / `user` or `admin` / `admin`).
-2. **Settings** → ensure **Enable local folder library** is on → **Add folder…** → pick a folder with `.md` / `.txt` / `.json` (etc.).
-3. Confirm **Scanning…** appears right away, then the folder shows a file count and **Last scan** time (no app restart). Inaccessible / permission errors show in the status alert and on the folder row.
-4. Open **Library** — left menu already lists files under that folder (also refreshes if Settings broadcast an update). Use **Re-scan** and confirm last scan time updates.
-5. Click a file — status shows upload/processing, then the reader opens (identical content reuses soft-dedup).
-6. Remove the folder in Settings — it disappears from the left menu after refresh/rescan.
+2. **Settings** → ensure **Enable local folder library** is on → **Add folder…** → pick a folder that has nested subfolders with `.md` / `.txt` / `.json` (etc.).
+3. Confirm **Scanning…**, then file count + **Last scan** (no restart). Nested files from subfolders appear.
+4. Open **Ingest** — left **Local files** rail lists the same scan results even if the API chip shows Down.
+5. Open **Library** — left menu lists files grouped by folder / path → open one → reader (needs API).
+6. With API up, confirm **Recent** does not stick on “Too many requests” after normal navigation; refresh still works after backoff/cache.
+7. Remove the folder in Settings — it disappears from the left menu after refresh/rescan.
 
 ## Empty states
 
 - No folders configured → Settings CTA.
 - Permission denied / missing handle → inaccessible badge + error text; re-add folder.
-- No matching files → “No matching files” under the folder group.
+- No matching files (including after recursive walk) → **No readable files found**.
+- Scan in progress → **Scanning…** / **Scan in progress…**.
 
 ## Persistence
 
 - IndexedDB database `clearread-local-library`: folder records, directory handles (when supported), scanned file metadata, last scan timestamp.
 - Feature flag: `localStorage` key `clearread.localFolderLibraryEnabled` (default on).
 - Folder handles never leave the browser.
-- Cross-view refresh: `clearread:local-library-changed` window event after add / remove / re-scan.
+- Cross-view refresh: shared `LocalLibraryProvider` + `clearread:local-library-changed` window event after add / remove / re-scan.
 
 ## Server scan roots (optional / not in v1.2.x UI)
 
@@ -57,7 +65,7 @@ Do **not** claim Docker can browse the whole machine without mounts. Prefer the 
 
 ## Related code
 
-- `frontend/src/library/*` — filter, IndexedDB, FS Access, scan, open, scan-on-select helpers
-- `frontend/src/pages/SettingsPage.tsx` — preferred folders UI
-- `frontend/src/pages/LibraryPage.tsx` — left file menu
-- Unit tests: `frontend/src/library/fileFilter.test.ts`, `frontend/src/library/scanOnSelect.test.ts`
+- `frontend/src/library/*` — filter, walk limits, IndexedDB, FS Access, scan, open, shared provider
+- `frontend/src/api/recentDocuments.ts` — Recent list cache / 429 backoff
+- `frontend/src/pages/SettingsPage.tsx`, `LibraryPage.tsx`, `HomePage.tsx` — UI surfaces
+- Unit tests: `folderWalk.test.ts`, `fileFilter.test.ts`, `scanOnSelect.test.ts`, `recentDocuments.test.ts`

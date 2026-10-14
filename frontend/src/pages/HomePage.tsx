@@ -1,18 +1,13 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { apiFetch, formatApiError } from "../api/client";
+import { fetchRecentDocuments, type RecentDocMeta } from "../api/recentDocuments";
 import { useAuth } from "../auth/AuthProvider";
 import { DEMO_ACCOUNTS, useBranding } from "../branding/BrandingProvider";
+import { LocalFileNav } from "../library/LocalFileNav";
+import { useSharedLocalLibrary } from "../library/LocalLibraryProvider";
 
-type DocMeta = {
-  id: string;
-  title: string;
-  status: string;
-  formatId: string;
-  jobId?: string;
-  duplicateOfExisting?: boolean;
-  message?: string;
-};
+type DocMeta = RecentDocMeta;
 
 type CapabilityFormat = {
   formatId: string;
@@ -52,6 +47,8 @@ export function HomePage() {
 
   const token = auth.getAccessToken();
   const signedIn = Boolean(auth.user || (auth.devBypass && token));
+  const localLib = useSharedLocalLibrary();
+  const showLocalRail = localLib.enabled && (localLib.folders.length > 0 || localLib.scanning || Boolean(localLib.lastScanAt));
 
   const supportedFormats = useMemo(
     () => (capabilities?.formats ?? []).filter((f) => f.ingest === "supported"),
@@ -88,15 +85,15 @@ export function HomePage() {
 
   useEffect(() => {
     if (!signedIn || !token) return;
-    apiFetch("/v1/documents", token)
-      .then((data) => {
-        setDocs(data as DocMeta[]);
-        setDocsError(null);
-      })
-      .catch((e) => {
-        setDocs([]);
-        setDocsError(formatApiError(e, "Recent documents"));
-      });
+    let cancelled = false;
+    void fetchRecentDocuments(token).then((result) => {
+      if (cancelled) return;
+      setDocs(result.docs);
+      setDocsError(result.error);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [signedIn, token]);
 
   async function waitUntilReady(id: string, accessToken: string) {
@@ -207,7 +204,7 @@ export function HomePage() {
     }
   }
 
-  return (
+  const homeBody = (
     <>
       <section className="hero">
         <p className="page-eyebrow">Self-hosted reading workspace</p>
@@ -520,5 +517,26 @@ export function HomePage() {
         </aside>
       </div>
     </>
+  );
+
+  if (!showLocalRail) {
+    return homeBody;
+  }
+
+  return (
+    <div className="library-layout home-with-local">
+      <LocalFileNav
+        folders={localLib.folders}
+        files={localLib.files}
+        enabled={localLib.enabled}
+        scanning={localLib.scanning}
+        lastScanAt={localLib.lastScanAt}
+        error={localLib.error}
+        formatsSource={localLib.formatsSource}
+        title="Local files"
+        onRescan={() => void localLib.rescan()}
+      />
+      <div className="home-main">{homeBody}</div>
+    </div>
   );
 }

@@ -928,6 +928,29 @@ textarea {
   padding-right: 0.15rem;
 }
 
+.local-file-subdir {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.local-file-subdir-label {
+  margin: 0.35rem 0 0.1rem;
+  font-size: 0.72rem;
+  font-family: var(--font-ui);
+  letter-spacing: 0.02em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.home-with-local .home-main {
+  min-width: 0;
+}
+
+.home-with-local .hero {
+  margin-top: 0;
+}
+
 .local-file-group-label {
   display: flex;
   align-items: center;

@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { buildSupportedIndex, DEFAULT_MAX_UPLOAD_BYTES, normalizeExtension } from "./capabilities";
+import {
+  buildSupportedIndex,
+  DEFAULT_MAX_UPLOAD_BYTES,
+  FALLBACK_CAPABILITY_FORMATS,
+  formatsForScan,
+  normalizeExtension,
+} from "./capabilities";
 import { filterLocalFile, isReadableLocalFile, shouldSkipDirectoryName } from "./fileFilter";
 
 const sampleFormats = [
@@ -95,5 +101,22 @@ describe("shouldSkipDirectoryName", () => {
     expect(shouldSkipDirectoryName("node_modules")).toBe(true);
     expect(shouldSkipDirectoryName(".git")).toBe(true);
     expect(shouldSkipDirectoryName("src")).toBe(false);
+  });
+});
+
+describe("formatsForScan fallback", () => {
+  it("uses API formats when present", () => {
+    const { formats, source } = formatsForScan(sampleFormats);
+    expect(source).toBe("api");
+    expect(formats).toBe(sampleFormats);
+  });
+
+  it("falls back when capabilities are missing or empty (API down)", () => {
+    expect(formatsForScan(null).source).toBe("fallback");
+    expect(formatsForScan([]).source).toBe("fallback");
+    const index = buildSupportedIndex(formatsForScan(null).formats);
+    expect(index.extensions.has(".md")).toBe(true);
+    expect(filterLocalFile({ name: "note.md", size: 12 }, { index }).ok).toBe(true);
+    expect(FALLBACK_CAPABILITY_FORMATS.length).toBeGreaterThan(0);
   });
 });

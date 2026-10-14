@@ -1,9 +1,17 @@
 import {
   DEFAULT_MAX_UPLOAD_BYTES,
   buildSupportedIndex,
+  formatsForScan,
   type CapabilityFormat,
 } from "./capabilities";
 import { filterLocalFile, shouldSkipDirectoryName } from "./fileFilter";
+import {
+  DEFAULT_MAX_SCAN_DEPTH,
+  DEFAULT_MAX_SCAN_FILES,
+  filterFlatRelativeHits,
+  type WalkHit,
+  type WalkLimits,
+} from "./folderWalk";
 import {
   getDirectoryHandle,
   listPreferredFolders,
@@ -19,29 +27,34 @@ import type { FolderScanSummary, PreferredFolderRecord, ScannedLocalFile } from 
 export type ScanOptions = {
   formats: CapabilityFormat[] | null | undefined;
   maxBytes?: number;
+  maxDepth?: number;
+  maxFiles?: number;
 };
 
-type WalkHit = {
-  relativePath: string;
-  name: string;
-  size: number;
-  type: string;
-};
+export type { WalkHit };
 
-async function walkDirectoryHandle(
+/**
+ * Recursively walk a File System Access directory handle to leaf folders,
+ * respecting ignore names, max depth, and max file count.
+ */
+export async function walkDirectoryHandle(
   dir: FileSystemDirectoryHandle,
   prefix: string,
   out: WalkHit[],
-  maxFiles = 5000
+  limits: WalkLimits = {},
+  depth = 0
 ): Promise<void> {
+  const maxFiles = limits.maxFiles ?? DEFAULT_MAX_SCAN_FILES;
+  const maxDepth = limits.maxDepth ?? DEFAULT_MAX_SCAN_DEPTH;
   if (out.length >= maxFiles) return;
-  // FileSystemDirectoryHandle.values() / entries() — iterate async
+
   for await (const [name, handle] of dir.entries()) {
     if (out.length >= maxFiles) return;
     if (handle.kind === "directory") {
       if (shouldSkipDirectoryName(name)) continue;
+      if (depth >= maxDepth) continue;
       const next = prefix ? `${prefix}/${name}` : name;
-      await walkDirectoryHandle(handle as FileSystemDirectoryHandle, next, out, maxFiles);
+      await walkDirectoryHandle(handle as FileSystemDirectoryHandle, next, out, limits, depth + 1);
     } else if (handle.kind === "file") {
       try {
         const file = await (handle as FileSystemFileHandle).getFile();
@@ -65,7 +78,8 @@ function toScannedFiles(
   formats: CapabilityFormat[] | null | undefined,
   maxBytes: number
 ): { files: ScannedLocalFile[]; summary: Omit<FolderScanSummary, "folderId" | "scannedAt" | "error"> } {
-  const index = buildSupportedIndex(formats);
+  const { formats: effective } = formatsForScan(formats);
+  const index = buildSupportedIndex(effective);
   const files: ScannedLocalFile[] = [];
   let skippedUnsupported = 0;
   let skippedOversized = 0;
@@ -106,11 +120,23 @@ function toScannedFiles(
   };
 }
 
+function emptyNoReadableError(matched: number, skippedUnsupported: number): string | null {
+  if (matched > 0) return null;
+  if (skippedUnsupported > 0) {
+    return "No readable files found — scanned files did not match ClearRead-supported extensions (or exceeded 10 MiB).";
+  }
+  return "No readable files found in this folder (including subfolders).";
+}
+
 export async function scanPreferredFolder(
   folder: PreferredFolderRecord,
   options: ScanOptions
 ): Promise<{ files: ScannedLocalFile[]; summary: FolderScanSummary; folder: PreferredFolderRecord }> {
   const maxBytes = options.maxBytes ?? DEFAULT_MAX_UPLOAD_BYTES;
+  const limits: WalkLimits = {
+    maxDepth: options.maxDepth ?? DEFAULT_MAX_SCAN_DEPTH,
+    maxFiles: options.maxFiles ?? DEFAULT_MAX_SCAN_FILES,
+  };
   const scannedAt = new Date().toISOString();
 
   if (folder.mode !== "fs-access") {
@@ -190,13 +216,14 @@ export async function scanPreferredFolder(
 
   try {
     const hits: WalkHit[] = [];
-    await walkDirectoryHandle(handle, "", hits);
+    await walkDirectoryHandle(handle, "", hits, limits, 0);
     const { files, summary: counts } = toScannedFiles(folder, hits, options.formats, maxBytes);
+    const softError = emptyNoReadableError(counts.matched, counts.skippedUnsupported);
     const updated: PreferredFolderRecord = {
       ...folder,
       displayName: handle.name || folder.displayName,
       lastScanAt: scannedAt,
-      lastError: null,
+      lastError: softError,
       inaccessible: false,
       fileCount: files.length,
     };
@@ -204,7 +231,7 @@ export async function scanPreferredFolder(
     await replaceScannedFiles(folder.id, files);
     return {
       files,
-      summary: { folderId: folder.id, scannedAt, error: null, ...counts },
+      summary: { folderId: folder.id, scannedAt, error: softError, ...counts },
       folder: updated,
     };
   } catch (e) {
@@ -286,6 +313,7 @@ export async function scanAllPreferredFolders(options: ScanOptions): Promise<{
 
 /**
  * Ingest a FileList from `<input webkitdirectory>` into the local library store.
+ * The picker already returns nested files; we still apply ignore / depth / max-file rules.
  */
 export async function ingestWebkitDirectoryFiles(
   displayName: string,
@@ -293,6 +321,10 @@ export async function ingestWebkitDirectoryFiles(
   options: ScanOptions
 ): Promise<{ folder: PreferredFolderRecord; files: ScannedLocalFile[] }> {
   const maxBytes = options.maxBytes ?? DEFAULT_MAX_UPLOAD_BYTES;
+  const limits: WalkLimits = {
+    maxDepth: options.maxDepth ?? DEFAULT_MAX_SCAN_DEPTH,
+    maxFiles: options.maxFiles ?? DEFAULT_MAX_SCAN_FILES,
+  };
   const id = newFolderId();
   const scannedAt = new Date().toISOString();
   const filesArr = Array.from(fileList as ArrayLike<File>);
@@ -335,17 +367,11 @@ export async function ingestWebkitDirectoryFiles(
     };
   });
 
-  // Skip files under ignored directories
-  const filteredHits = hits.filter((h) => {
-    const segs = h.relativePath.split("/");
-    return !segs.slice(0, -1).some((s) => shouldSkipDirectoryName(s));
-  });
+  const filteredHits = filterFlatRelativeHits(hits, limits);
 
-  const { files } = toScannedFiles(folder, filteredHits, options.formats, maxBytes);
+  const { files, summary: counts } = toScannedFiles(folder, filteredHits, options.formats, maxBytes);
   folder.fileCount = files.length;
-  if (files.length === 0) {
-    folder.lastError = "No readable ClearRead files found in this folder (check extensions and 10 MiB limit).";
-  }
+  folder.lastError = emptyNoReadableError(counts.matched, counts.skippedUnsupported);
 
   await savePreferredFolder(folder);
   await replaceScannedFiles(folder.id, files);
