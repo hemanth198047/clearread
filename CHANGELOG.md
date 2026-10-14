@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.7] — 2026-10-14
+
+### Fixed
+
+- **Orphaned original after S3 wipe:** Reprocess no longer dead-ends on a 409 that only says “re-upload”. Users can **replace the original onto the same document** (`POST /v1/documents/{id}/replace-original` multipart or JSON paste), then process to ready. Reader shows an upload/paste recovery panel; Library flags `original missing — re-upload`.
+- **Soft-dedup restore:** Re-uploading the same file after a storage wipe restores original bytes on the existing id, re-queues ClearDoc, and returns `duplicateOfExisting` + `restoredStorage` (no stuck ready-with-missing-bytes).
+- **Storage integrity flags:** Document GET / diagnostics and Library list expose `originalMissing` / `storageOrphaned` / `recovery` so the UI does not pretend ready docs are fine when objects are gone.
+
+### Tests
+
+- `DocumentServiceClearDocReadTest`: reprocess 409 points at replace-original; replace-original enqueues transform; soft-dedup restores missing original.
+
 ## [1.2.6] — 2026-10-14
 
 ### Fixed

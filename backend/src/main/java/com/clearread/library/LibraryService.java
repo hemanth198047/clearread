@@ -2,6 +2,7 @@ package com.clearread.library;
 
 import com.clearread.documents.DocumentRepository;
 import com.clearread.identity.UserRecord;
+import com.clearread.storage.ObjectStorageService;
 import com.clearread.tenancy.TenantContext;
 import com.clearread.tenancy.WorkspaceSettingsRepository;
 import org.springframework.http.HttpStatus;
@@ -22,11 +23,18 @@ public class LibraryService {
     private final JdbcTemplate jdbc;
     private final DocumentRepository documents;
     private final WorkspaceSettingsRepository settings;
+    private final ObjectStorageService storage;
 
-    public LibraryService(JdbcTemplate jdbc, DocumentRepository documents, WorkspaceSettingsRepository settings) {
+    public LibraryService(
+            JdbcTemplate jdbc,
+            DocumentRepository documents,
+            WorkspaceSettingsRepository settings,
+            ObjectStorageService storage
+    ) {
         this.jdbc = jdbc;
         this.documents = documents;
         this.settings = settings;
+        this.storage = storage;
     }
 
     public List<Map<String, Object>> listLibrary(
@@ -48,7 +56,7 @@ public class LibraryService {
         StringBuilder sql = new StringBuilder(
                 """
                 SELECT d.id, d.title, d.description, d.format_id, d.status, d.favorite, d.collection_id,
-                       d.original_sha256, d.original_byte_length, d.original_filename,
+                       d.original_object_key, d.original_sha256, d.original_byte_length, d.original_filename,
                        d.current_revision_id, d.created_at, d.updated_at, d.last_opened_at, d.deleted_at
                 FROM documents d
                 WHERE d.tenant_id = ?
@@ -97,6 +105,8 @@ public class LibraryService {
             m.put("status", rs.getString("status"));
             m.put("favorite", rs.getBoolean("favorite"));
             m.put("collectionId", rs.getObject("collection_id") == null ? "" : rs.getObject("collection_id", UUID.class).toString());
+            String originalKey = rs.getString("original_object_key");
+            m.put("_originalObjectKey", originalKey == null ? "" : originalKey);
             m.put("originalSha256", rs.getString("original_sha256") == null ? "" : rs.getString("original_sha256"));
             m.put("originalByteLength", rs.getObject("original_byte_length") == null ? 0 : rs.getLong("original_byte_length"));
             m.put("originalFilename", rs.getString("original_filename") == null ? "" : rs.getString("original_filename"));
@@ -110,7 +120,29 @@ public class LibraryService {
 
         return rows.stream()
                 .filter(m -> documents.canRead(tenantId, UUID.fromString((String) m.get("id")), user.id(), TenantContext.roleOrNull()))
+                .map(m -> {
+                    String originalKey = (String) m.remove("_originalObjectKey");
+                    boolean originalMissing = isOriginalMissing(originalKey);
+                    m.put("originalMissing", originalMissing);
+                    if (originalMissing) {
+                        m.put("storageOrphaned", true);
+                        m.put("recovery", "replace-original");
+                    }
+                    return m;
+                })
                 .toList();
+    }
+
+    private boolean isOriginalMissing(String originalKey) {
+        if (originalKey == null || originalKey.isBlank()) {
+            return true;
+        }
+        try {
+            return !storage.exists(originalKey);
+        } catch (RuntimeException e) {
+            // Do not fail the whole library list if object storage is briefly unreachable.
+            return false;
+        }
     }
 
     @Transactional

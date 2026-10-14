@@ -133,7 +133,12 @@ export function HomePage() {
   }
 
   async function openIngested(created: DocMeta, accessToken: string) {
-    if (created.duplicateOfExisting) {
+    if (created.restoredStorage) {
+      setProgress(
+        created.message ??
+          "Matched an existing document with missing storage — restored original and reprocessing…"
+      );
+    } else if (created.duplicateOfExisting) {
       setProgress(created.message ?? "Identical content already in your library — opening existing…");
     }
     if (created.status !== "ready") {

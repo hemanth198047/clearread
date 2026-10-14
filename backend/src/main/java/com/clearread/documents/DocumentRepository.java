@@ -70,7 +70,7 @@ public class DocumentRepository {
             UUID tenantId, UUID documentId, String objectKey, String sha256, long byteLength,
             String contentType, String filename, String fetchMetaJson
     ) {
-        jdbc.update(
+        int updated = jdbc.update(
                 """
                 UPDATE document_sources
                 SET object_key = ?, content_sha256 = ?, byte_length = ?, content_type = ?,
@@ -79,6 +79,13 @@ public class DocumentRepository {
                 """,
                 objectKey, sha256, byteLength, contentType, filename, fetchMetaJson, tenantId, documentId
         );
+        if (updated == 0) {
+            insertSource(
+                    UUID.randomUUID(), tenantId, documentId, "upload",
+                    objectKey, sha256, byteLength, contentType, filename, null,
+                    fetchMetaJson == null ? "{}" : fetchMetaJson
+            );
+        }
     }
 
     public void attachOriginal(UUID tenantId, UUID documentId, String objectKey, String sha256,
