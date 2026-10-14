@@ -1,5 +1,6 @@
 package com.clearread.api;
 
+import com.clearread.ai.AiConnectionConfigService;
 import com.clearread.audit.AuditService;
 import com.clearread.identity.UserRecord;
 import com.clearread.jobs.JobRepository;
@@ -32,6 +33,7 @@ public class TenantAdminController {
 
     private final JdbcTemplate jdbc;
     private final WorkspaceSettingsRepository settings;
+    private final AiConnectionConfigService aiConnection;
     private final JobRepository jobs;
     private final AuditService audit;
     private final InviteRepository invites;
@@ -39,12 +41,14 @@ public class TenantAdminController {
     public TenantAdminController(
             JdbcTemplate jdbc,
             WorkspaceSettingsRepository settings,
+            AiConnectionConfigService aiConnection,
             JobRepository jobs,
             AuditService audit,
             InviteRepository invites
     ) {
         this.jdbc = jdbc;
         this.settings = settings;
+        this.aiConnection = aiConnection;
         this.jobs = jobs;
         this.audit = audit;
         this.invites = invites;
@@ -179,6 +183,82 @@ public class TenantAdminController {
         audit.record(actor.id(), "workspace.settings_update", "tenant", tenantId.toString(),
                 Map.of("aiEnabled", next.aiEnabled(), "aiProviderId", next.aiProviderId()));
         return toSettingsMap(next);
+    }
+
+    /**
+     * Effective AI connection config (Ollama URL/model, external URL/model, masked API key).
+     * Readable by any workspace member so enrichment UI can show connected vs missing.
+     */
+    @GetMapping("/ai-connection")
+    Map<String, Object> getAiConnection(HttpServletRequest request, @PathVariable("tenantId") UUID tenantId) {
+        MeController.requireUser(request);
+        requireActiveTenant(tenantId);
+        return aiConnection.toPublicMap(tenantId);
+    }
+
+    public record AiConnectionRequest(
+            Boolean ollamaEnabled,
+            String ollamaBaseUrl,
+            String ollamaModel,
+            Boolean externalEnabled,
+            String externalBaseUrl,
+            String externalModel,
+            String apiKey,
+            Boolean clearApiKey
+    ) {
+    }
+
+    @PutMapping("/ai-connection")
+    Map<String, Object> putAiConnection(
+            HttpServletRequest request,
+            @PathVariable("tenantId") UUID tenantId,
+            @RequestBody AiConnectionRequest body
+    ) {
+        UserRecord actor = MeController.requireUser(request);
+        requireAdmin(tenantId);
+        Map<String, Object> current = aiConnection.toPublicMap(tenantId);
+        boolean ollamaEnabled = body.ollamaEnabled() == null
+                ? Boolean.TRUE.equals(current.get("ollamaEnabled"))
+                : body.ollamaEnabled();
+        boolean externalEnabled = body.externalEnabled() == null
+                ? Boolean.TRUE.equals(current.get("externalEnabled"))
+                : body.externalEnabled();
+        String ollamaBaseUrl = body.ollamaBaseUrl() == null
+                ? String.valueOf(current.getOrDefault("ollamaBaseUrl", ""))
+                : body.ollamaBaseUrl();
+        String ollamaModel = body.ollamaModel() == null
+                ? String.valueOf(current.getOrDefault("ollamaModel", ""))
+                : body.ollamaModel();
+        String externalBaseUrl = body.externalBaseUrl() == null
+                ? String.valueOf(current.getOrDefault("externalBaseUrl", ""))
+                : body.externalBaseUrl();
+        String externalModel = body.externalModel() == null
+                ? String.valueOf(current.getOrDefault("externalModel", ""))
+                : body.externalModel();
+        if (ollamaEnabled && (ollamaBaseUrl == null || ollamaBaseUrl.isBlank())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "ollamaBaseUrl is required when Ollama is enabled");
+        }
+        if (externalEnabled && (externalBaseUrl == null || externalBaseUrl.isBlank())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "externalBaseUrl is required when external provider is enabled");
+        }
+        aiConnection.upsert(
+                tenantId,
+                ollamaEnabled,
+                ollamaBaseUrl,
+                ollamaModel,
+                externalEnabled,
+                externalBaseUrl,
+                externalModel,
+                body.apiKey(),
+                Boolean.TRUE.equals(body.clearApiKey())
+        );
+        audit.record(actor.id(), "ai.connection.update", "tenant", tenantId.toString(),
+                Map.of(
+                        "ollamaEnabled", ollamaEnabled,
+                        "externalEnabled", externalEnabled,
+                        "apiKeyConfigured", aiConnection.external(tenantId).apiKeyConfigured()
+                ));
+        return aiConnection.toPublicMap(tenantId);
     }
 
     @GetMapping("/branding")

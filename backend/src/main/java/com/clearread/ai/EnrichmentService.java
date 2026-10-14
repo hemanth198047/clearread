@@ -43,6 +43,7 @@ public class EnrichmentService {
     private final ObjectStorageService storage;
     private final WorkspaceSettingsRepository settings;
     private final AiProviderRegistry providers;
+    private final AiConnectionConfigService connectionConfig;
     private final JobRepository jobs;
     private final AuditService audit;
     private final ObjectMapper objectMapper;
@@ -55,6 +56,7 @@ public class EnrichmentService {
             ObjectStorageService storage,
             WorkspaceSettingsRepository settings,
             AiProviderRegistry providers,
+            AiConnectionConfigService connectionConfig,
             JobRepository jobs,
             AuditService audit,
             ObjectMapper objectMapper,
@@ -66,6 +68,7 @@ public class EnrichmentService {
         this.storage = storage;
         this.settings = settings;
         this.providers = providers;
+        this.connectionConfig = connectionConfig;
         this.jobs = jobs;
         this.audit = audit;
         this.objectMapper = objectMapper;
@@ -75,16 +78,24 @@ public class EnrichmentService {
     public Map<String, Object> status(UserRecord user, UUID documentId) {
         DocumentRecord doc = documentService.getForRead(user, documentId);
         WorkspaceSettings ws = settings.getOrDefaults(doc.tenantId());
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("aiEnabled", ws.aiEnabled());
-        m.put("aiLocalOnly", ws.aiLocalOnly());
-        m.put("aiAllowExternal", ws.aiAllowExternal());
-        m.put("aiProviderId", ws.aiProviderId());
-        m.put("aiDailyQuota", ws.aiDailyQuota());
-        m.put("usageToday", enrichments.usageToday(doc.tenantId()));
-        m.put("providers", providers.list());
-        m.put("documentReady", "ready".equals(doc.status()));
-        return m;
+        return connectionConfig.withTenant(doc.tenantId(), () -> {
+            AiProvider provider = providers.require(ws.aiProviderId());
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("aiEnabled", ws.aiEnabled());
+            m.put("aiLocalOnly", ws.aiLocalOnly());
+            m.put("aiAllowExternal", ws.aiAllowExternal());
+            m.put("aiProviderId", ws.aiProviderId());
+            m.put("aiDailyQuota", ws.aiDailyQuota());
+            m.put("usageToday", enrichments.usageToday(doc.tenantId()));
+            m.put("providers", providers.list());
+            m.put("documentReady", "ready".equals(doc.status()));
+            m.put("providerAvailable", provider.isAvailable());
+            m.put("providerModelId", provider.modelId());
+            m.put("providerLocal", provider.isLocal());
+            m.put("connection", connectionConfig.toPublicMap(doc.tenantId()));
+            m.put("configurePath", "/admin#ai-provider");
+            return m;
+        });
     }
 
     @Transactional
@@ -102,59 +113,62 @@ public class EnrichmentService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN,
                     "AI enrichment is disabled for this workspace (org policy)");
         }
-        AiProvider provider = providers.require(ws.aiProviderId());
-        if (!provider.isLocal() && (ws.aiLocalOnly() || !ws.aiAllowExternal())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
-                    "External AI is not permitted by workspace policy (enable allow-external and disable local-only)");
-        }
-        if (!provider.isAvailable()) {
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
-                    "AI provider '" + provider.providerId() + "' is not available/configured");
-        }
-        if (enrichments.usageToday(doc.tenantId()) >= ws.aiDailyQuota()) {
-            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "Daily AI quota exceeded");
-        }
+        return connectionConfig.withTenant(doc.tenantId(), () -> {
+            AiProvider provider = providers.require(ws.aiProviderId());
+            if (!provider.isLocal() && (ws.aiLocalOnly() || !ws.aiAllowExternal())) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                        "External AI is not permitted by workspace policy (enable allow-external and disable local-only)");
+            }
+            if (!provider.isAvailable()) {
+                throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                        "AI provider '" + provider.providerId() + "' is not available/configured");
+            }
+            if (enrichments.usageToday(doc.tenantId()) >= ws.aiDailyQuota()) {
+                throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "Daily AI quota exceeded");
+            }
 
-        var template = enrichments.latestTemplate(kind)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Missing prompt template"));
-        String configHash = sha256(ws.aiProviderId() + "|" + template.id() + "|" + template.version()
-                + "|" + ws.aiLocalOnly() + "|" + ws.aiAllowExternal());
-        String cacheKey = sha256(doc.id() + "|" + doc.currentRevisionId() + "|" + kind + "|" + configHash);
+            var template = enrichments.latestTemplate(kind)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Missing prompt template"));
+            String configHash = sha256(ws.aiProviderId() + "|" + template.id() + "|" + template.version()
+                    + "|" + ws.aiLocalOnly() + "|" + ws.aiAllowExternal()
+                    + "|" + connectionConfig.configFingerprint(doc.tenantId()));
+            String cacheKey = sha256(doc.id() + "|" + doc.currentRevisionId() + "|" + kind + "|" + configHash);
 
-        var cached = enrichments.findCachedReady(doc.tenantId(), cacheKey);
-        if (cached.isPresent()) {
-            audit.record(user.id(), "ai.enrichment.cache_hit", "ai_enrichment", cached.get().id().toString(),
-                    Map.of("kind", kind, "documentId", documentId.toString()));
-            return toMap(cached.get());
-        }
+            var cached = enrichments.findCachedReady(doc.tenantId(), cacheKey);
+            if (cached.isPresent()) {
+                audit.record(user.id(), "ai.enrichment.cache_hit", "ai_enrichment", cached.get().id().toString(),
+                        Map.of("kind", kind, "documentId", documentId.toString()));
+                return toMap(cached.get());
+            }
 
-        UUID enrichmentId = UUID.randomUUID();
-        enrichments.insertPending(new EnrichmentRepository.EnrichmentRecord(
-                enrichmentId, doc.tenantId(), doc.id(), doc.currentRevisionId(), kind, "pending",
-                provider.providerId(), provider.modelId(), template.id(), template.version(),
-                configHash, cacheKey, null, null, user.id(), null
-        ));
+            UUID enrichmentId = UUID.randomUUID();
+            enrichments.insertPending(new EnrichmentRepository.EnrichmentRecord(
+                    enrichmentId, doc.tenantId(), doc.id(), doc.currentRevisionId(), kind, "pending",
+                    provider.providerId(), provider.modelId(), template.id(), template.version(),
+                    configHash, cacheKey, null, null, user.id(), null
+            ));
 
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("documentId", documentId.toString());
-        payload.put("enrichmentId", enrichmentId.toString());
-        payload.put("kind", kind);
-        try {
-            int maxAttempts = Math.max(1, Math.min(ws.aiMaxRetries() + 1, properties.getAi().getMaxRetries() + 1));
-            jobs.enqueueWithMaxAttempts(
-                    UUID.randomUUID(),
-                    doc.tenantId(),
-                    "enrich.document",
-                    objectMapper.writeValueAsString(payload),
-                    "enrich:" + enrichmentId,
-                    maxAttempts
-            );
-        } catch (Exception e) {
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to enqueue enrichment");
-        }
-        audit.record(user.id(), "ai.enrichment.request", "ai_enrichment", enrichmentId.toString(),
-                Map.of("kind", kind, "provider", provider.providerId(), "documentId", documentId.toString()));
-        return toMap(enrichments.find(doc.tenantId(), enrichmentId).orElseThrow());
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("documentId", documentId.toString());
+            payload.put("enrichmentId", enrichmentId.toString());
+            payload.put("kind", kind);
+            try {
+                int maxAttempts = Math.max(1, Math.min(ws.aiMaxRetries() + 1, properties.getAi().getMaxRetries() + 1));
+                jobs.enqueueWithMaxAttempts(
+                        UUID.randomUUID(),
+                        doc.tenantId(),
+                        "enrich.document",
+                        objectMapper.writeValueAsString(payload),
+                        "enrich:" + enrichmentId,
+                        maxAttempts
+                );
+            } catch (Exception e) {
+                throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to enqueue enrichment");
+            }
+            audit.record(user.id(), "ai.enrichment.request", "ai_enrichment", enrichmentId.toString(),
+                    Map.of("kind", kind, "provider", provider.providerId(), "documentId", documentId.toString()));
+            return toMap(enrichments.find(doc.tenantId(), enrichmentId).orElseThrow());
+        });
     }
 
     public List<Map<String, Object>> list(UserRecord user, UUID documentId) {
@@ -197,6 +211,13 @@ public class EnrichmentService {
      * No tools, URL fetch, permission changes, or unrelated document writes.
      */
     public void processJob(UUID tenantId, UUID enrichmentId) throws Exception {
+        connectionConfig.runWithTenant(tenantId, () -> {
+            processJobWithTenant(tenantId, enrichmentId);
+            return null;
+        });
+    }
+
+    private void processJobWithTenant(UUID tenantId, UUID enrichmentId) throws Exception {
         var record = enrichments.find(tenantId, enrichmentId)
                 .orElseThrow(() -> new IllegalStateException("Enrichment not found"));
         WorkspaceSettings ws = settings.getOrDefaults(tenantId);

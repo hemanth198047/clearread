@@ -406,6 +406,7 @@ public class ClearReadProperties {
 
         public static class Ollama {
             private boolean enabled = false;
+            /** Host default; Compose sets host.docker.internal for API-in-container → host Ollama. */
             private String baseUrl = "http://127.0.0.1:11434";
             private String model = "llama3.2";
 

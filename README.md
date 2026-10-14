@@ -1,6 +1,6 @@
-# ClearRead ![version](https://img.shields.io/badge/version-v1.2.8-1e293b)
+# ClearRead ![version](https://img.shields.io/badge/version-v1.2.9-1e293b)
 
-**ClearRead v1.2.8** (temporary product name; branding is configurable).  
+**ClearRead v1.2.9** (temporary product name; branding is configurable).  
 Turns Markdown and plain text into structured, accessible reading experiences — **preserves originals**, **no AI required** for the core path, and **honest format support** via a capability registry. Preferred local folders + Library file menu (browser File System Access).
 
 **Repository:** [`hemanth198047/clearread`](https://github.com/hemanth198047/clearread) (formerly `mdbeautifier`; GitHub redirects). Clone / remote notes: [docs/ops/repo-rename.md](docs/ops/repo-rename.md).
@@ -203,7 +203,7 @@ Windows Postgres: `scripts\backup.bat`. Object sync: Git Bash `bash scripts/back
 
 ### Optional AI (Phase 5)
 
-AI is **off by default**. Enable in Admin → Optional AI enrichment (mock-local for demos). See [docs/phase-5/exit-package.md](docs/phase-5/exit-package.md).
+AI is **off by default**. Enable in Admin → Optional AI enrichment (mock-local for demos). Configure Ollama URL/model or an external API key under **Admin → AI provider connection** (or `CLEARREAD_AI_*` env; Compose defaults Ollama to `http://host.docker.internal:11434`). See [docs/guides/admin.md](docs/guides/admin.md) and [docs/phase-5/exit-package.md](docs/phase-5/exit-package.md).
 
 ## Principles
 

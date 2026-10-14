@@ -160,6 +160,20 @@ export function SettingsPage() {
         )}
       </div>
 
+      <div className="settings-section">
+        <h2>AI provider</h2>
+        <p className="muted">
+          Optional enrichment (headings, segmentation, summary, glossary) uses workspace AI policy and connection
+          settings. Configure Ollama URL/model or an external API key under Admin — derived artifacts only; source
+          ClearDoc is never silently mutated.
+        </p>
+        <p>
+          <Link className="button secondary" to="/admin#ai-provider">
+            Open Admin AI settings
+          </Link>
+        </p>
+      </div>
+
       <div className="settings-section settings-server-note">
         <h2>Server scan roots (optional)</h2>
         <p className="muted">

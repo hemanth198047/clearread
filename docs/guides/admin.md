@@ -30,8 +30,10 @@ Environment overrides (see `application.yml`):
 ## Workspace / AI policy
 
 - Core reader never requires AI.
-- Admin UI + `PUT /v1/tenants/{id}/settings` control `aiEnabled`, local-only, external allow, quotas.
-- Global kill switches: `CLEARREAD_AI_OLLAMA_ENABLED`, `CLEARREAD_AI_EXTERNAL_ENABLED` (default false).
+- Admin UI + `PUT /v1/tenants/{id}/settings` control `aiEnabled`, local-only, external allow, provider id, quotas.
+- **AI provider connection (v1.2.9+):** Admin → AI provider connection + `GET/PUT /v1/tenants/{id}/ai-connection` set Ollama base URL/model and external URL/model/API key. Keys are stored in Postgres and never echoed in full (`apiKeyHint` only). Env vars (`CLEARREAD_AI_*`) remain bootstrap/fallback.
+- Compose default Ollama URL from the API container: `http://host.docker.internal:11434` (see `infra/compose.yaml` + `.env.example`).
+- Global kill switches / env bootstrap: `CLEARREAD_AI_OLLAMA_ENABLED`, `CLEARREAD_AI_EXTERNAL_ENABLED` (default false). Prefer enabling via Admin connection settings for local demos.
 - Never enable `clearread.ai.log-document-content` in production.
 
 ## Jobs & recovery

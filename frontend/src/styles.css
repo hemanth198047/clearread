@@ -870,6 +870,18 @@ textarea {
 
 .library-filters,
 .library-search,
+.ai-connection-block {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid color-mix(in srgb, var(--cr-border, #cbd5e1) 80%, transparent);
+}
+
+.ai-connection-block h3 {
+  margin: 0 0 0.5rem;
+  font-family: var(--cr-font-display, "Fraunces", Georgia, serif);
+  font-size: 1.15rem;
+}
+
 .admin-grid {
   display: flex;
   flex-wrap: wrap;

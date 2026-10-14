@@ -17,6 +17,27 @@ type Settings = {
   aiMaxRetries: number;
 };
 
+type AiConnection = {
+  ollamaEnabled: boolean;
+  ollamaBaseUrl: string;
+  ollamaModel: string;
+  ollamaAvailable: boolean;
+  ollamaSource: string;
+  externalEnabled: boolean;
+  externalBaseUrl: string;
+  externalModel: string;
+  externalAvailable: boolean;
+  externalSource: string;
+  apiKeyConfigured: boolean;
+  apiKeyHint: string;
+  defaults?: {
+    ollamaBaseUrl?: string;
+    ollamaModel?: string;
+    externalBaseUrl?: string;
+    externalModel?: string;
+  };
+};
+
 type Job = { id: string; type: string; status: string; documentId: string; lastError: string };
 
 type Invite = {
@@ -35,6 +56,9 @@ export function AdminPage() {
   const [tenantId, setTenantId] = useState("");
   const [role, setRole] = useState("");
   const [settings, setSettings] = useState<Settings | null>(null);
+  const [aiConnection, setAiConnection] = useState<AiConnection | null>(null);
+  const [apiKeyDraft, setApiKeyDraft] = useState("");
+  const [clearApiKey, setClearApiKey] = useState(false);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [invites, setInvites] = useState<Invite[]>([]);
   const [inviteEmail, setInviteEmail] = useState("");
@@ -52,6 +76,8 @@ export function AdminPage() {
         setRole(me.activeRole);
         const s = (await apiFetch(`/v1/tenants/${me.activeTenantId}/settings`, token)) as Settings;
         setSettings(s);
+        const conn = (await apiFetch(`/v1/tenants/${me.activeTenantId}/ai-connection`, token)) as AiConnection;
+        setAiConnection(conn);
         if (me.activeRole === "admin") {
           const j = (await apiFetch(`/v1/tenants/${me.activeTenantId}/jobs`, token)) as Job[];
           setJobs(j);
@@ -102,6 +128,36 @@ export function AdminPage() {
       setMsg("Settings saved");
     } catch (e) {
       setError(formatApiError(e, "Settings"));
+    }
+  }
+
+  async function saveAiConnection() {
+    if (!token || !tenantId || !aiConnection) return;
+    setMsg(null);
+    setError(null);
+    try {
+      const body: Record<string, unknown> = {
+        ollamaEnabled: aiConnection.ollamaEnabled,
+        ollamaBaseUrl: aiConnection.ollamaBaseUrl,
+        ollamaModel: aiConnection.ollamaModel,
+        externalEnabled: aiConnection.externalEnabled,
+        externalBaseUrl: aiConnection.externalBaseUrl,
+        externalModel: aiConnection.externalModel,
+        clearApiKey,
+      };
+      if (apiKeyDraft.trim()) {
+        body.apiKey = apiKeyDraft.trim();
+      }
+      const next = (await apiFetch(`/v1/tenants/${tenantId}/ai-connection`, token, {
+        method: "PUT",
+        body: JSON.stringify(body),
+      })) as AiConnection;
+      setAiConnection(next);
+      setApiKeyDraft("");
+      setClearApiKey(false);
+      setMsg("AI provider connection saved");
+    } catch (e) {
+      setError(formatApiError(e, "AI connection"));
     }
   }
 
@@ -246,10 +302,10 @@ export function AdminPage() {
             <p className="muted">Retention: {settings.retentionNote}</p>
           </div>
 
-          <h2>Optional AI enrichment</h2>
+          <h2 id="ai-provider">Optional AI enrichment</h2>
           <p className="muted">
-            Disabled by default. Core reader works without AI. External providers require explicit allow-external and
-            local-only off.
+            Disabled by default. Core reader works without AI. Derived enrichments only — source ClearDoc is never
+            silently mutated. External providers require explicit allow-external and local-only off.
           </p>
           <div className="admin-grid">
             <label className="check">
@@ -284,7 +340,7 @@ export function AdminPage() {
               >
                 <option value="mock-local">mock-local (deterministic demo)</option>
                 <option value="ollama">ollama (local)</option>
-                <option value="external">external (requires allow-external)</option>
+                <option value="external">external (OpenAI-compatible HTTP)</option>
               </select>
             </label>
             <label>
@@ -305,8 +361,120 @@ export function AdminPage() {
             </label>
           </div>
           <button type="button" onClick={() => void saveSettings()}>
-            Save settings
+            Save policy
           </button>
+
+          {aiConnection && (
+            <div className="ai-connection-block" data-testid="ai-provider-connection">
+              <h3>AI provider connection</h3>
+              <p className="muted">
+                Configure Ollama base URL/model or an external HTTP endpoint and API key. Keys are stored server-side
+                and never echoed in full. Env vars remain a bootstrap fallback (
+                <code>CLEARREAD_AI_*</code>
+                ). Compose default Ollama URL: <code>http://host.docker.internal:11434</code>.
+              </p>
+              <div className="status-bar">
+                <span className={`status-dot${aiConnection.ollamaAvailable ? "" : " err"}`} />
+                <span>
+                  Ollama: {aiConnection.ollamaAvailable ? "connected (configured)" : "not configured"} · source{" "}
+                  {aiConnection.ollamaSource}
+                </span>
+                <span className={`status-dot${aiConnection.externalAvailable ? "" : " err"}`} />
+                <span>
+                  External: {aiConnection.externalAvailable ? "connected (configured)" : "not configured"}
+                  {aiConnection.apiKeyConfigured ? ` · key ${aiConnection.apiKeyHint}` : " · no API key"}
+                </span>
+              </div>
+              <div className="admin-grid">
+                <label className="check">
+                  <input
+                    type="checkbox"
+                    checked={aiConnection.ollamaEnabled}
+                    onChange={(e) => setAiConnection({ ...aiConnection, ollamaEnabled: e.target.checked })}
+                    disabled={role !== "admin"}
+                  />
+                  Enable Ollama
+                </label>
+                <label>
+                  Ollama base URL
+                  <input
+                    type="url"
+                    value={aiConnection.ollamaBaseUrl}
+                    placeholder={aiConnection.defaults?.ollamaBaseUrl || "http://host.docker.internal:11434"}
+                    onChange={(e) => setAiConnection({ ...aiConnection, ollamaBaseUrl: e.target.value })}
+                    disabled={role !== "admin"}
+                  />
+                </label>
+                <label>
+                  Ollama model
+                  <input
+                    type="text"
+                    value={aiConnection.ollamaModel}
+                    placeholder={aiConnection.defaults?.ollamaModel || "llama3.2"}
+                    onChange={(e) => setAiConnection({ ...aiConnection, ollamaModel: e.target.value })}
+                    disabled={role !== "admin"}
+                  />
+                </label>
+                <label className="check">
+                  <input
+                    type="checkbox"
+                    checked={aiConnection.externalEnabled}
+                    onChange={(e) => setAiConnection({ ...aiConnection, externalEnabled: e.target.checked })}
+                    disabled={role !== "admin"}
+                  />
+                  Enable external HTTP provider
+                </label>
+                <label>
+                  External base URL
+                  <input
+                    type="url"
+                    value={aiConnection.externalBaseUrl}
+                    placeholder={aiConnection.defaults?.externalBaseUrl || "https://api.example.com/v1/enrich"}
+                    onChange={(e) => setAiConnection({ ...aiConnection, externalBaseUrl: e.target.value })}
+                    disabled={role !== "admin"}
+                  />
+                </label>
+                <label>
+                  External model
+                  <input
+                    type="text"
+                    value={aiConnection.externalModel}
+                    placeholder={aiConnection.defaults?.externalModel || "gpt-4o-mini"}
+                    onChange={(e) => setAiConnection({ ...aiConnection, externalModel: e.target.value })}
+                    disabled={role !== "admin"}
+                  />
+                </label>
+                <label>
+                  API key {aiConnection.apiKeyConfigured ? `(saved ${aiConnection.apiKeyHint})` : "(not set)"}
+                  <input
+                    type="password"
+                    autoComplete="off"
+                    value={apiKeyDraft}
+                    placeholder={aiConnection.apiKeyConfigured ? "Leave blank to keep existing key" : "sk-…"}
+                    onChange={(e) => setApiKeyDraft(e.target.value)}
+                    disabled={role !== "admin" || clearApiKey}
+                  />
+                </label>
+                <label className="check">
+                  <input
+                    type="checkbox"
+                    checked={clearApiKey}
+                    onChange={(e) => {
+                      setClearApiKey(e.target.checked);
+                      if (e.target.checked) setApiKeyDraft("");
+                    }}
+                    disabled={role !== "admin"}
+                  />
+                  Clear saved API key
+                </label>
+              </div>
+              {role === "admin" && (
+                <button type="button" onClick={() => void saveAiConnection()}>
+                  Save AI connection
+                </button>
+              )}
+            </div>
+          )}
         </>
       )}
 

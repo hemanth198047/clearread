@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.9] — 2026-10-14
+
+### Added
+
+- **AI provider connection settings:** Admin UI + `GET/PUT /v1/tenants/{id}/ai-connection` to configure Ollama base URL/model and external HTTP provider URL/model/API key at runtime (DB-backed overrides; env remains bootstrap/fallback).
+- **Enrichment status + Configure CTA:** Enrichment review shows connected vs missing provider status and links to Admin → AI provider connection when Ollama/external is not configured.
+- **Compose Ollama defaults:** API service defaults `CLEARREAD_AI_OLLAMA_URL=http://host.docker.internal:11434` with `extra_hosts` for host-gateway; documented in `.env.example`.
+
+### Security
+
+- External API keys are stored server-side and returned only as `apiKeyConfigured` + masked `apiKeyHint` (never the full key). Blank key on save keeps the existing secret; `clearApiKey` clears it.
+
+### Tests
+
+- `AiConnectionConfigServiceTest`, `AiConnectionSettingsIntegrationTest`, frontend `EnrichmentReview.test.tsx`.
+
 ## [1.2.8] — 2026-10-14
 
 ### Fixed

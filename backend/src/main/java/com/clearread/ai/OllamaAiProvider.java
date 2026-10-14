@@ -16,8 +16,8 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * Local Ollama adapter seam. Disabled unless clearread.ai.ollama.enabled=true.
- * Never logs document content by default.
+ * Local Ollama adapter. Available when enabled via Admin AI connection settings
+ * or CLEARREAD_AI_OLLAMA_ENABLED. Never logs document content by default.
  */
 @Component
 public class OllamaAiProvider implements AiProvider {
@@ -26,11 +26,17 @@ public class OllamaAiProvider implements AiProvider {
     private static final Logger log = LoggerFactory.getLogger(OllamaAiProvider.class);
 
     private final ClearReadProperties properties;
+    private final AiConnectionConfigService connectionConfig;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
 
-    public OllamaAiProvider(ClearReadProperties properties, ObjectMapper objectMapper) {
+    public OllamaAiProvider(
+            ClearReadProperties properties,
+            AiConnectionConfigService connectionConfig,
+            ObjectMapper objectMapper
+    ) {
         this.properties = properties;
+        this.connectionConfig = connectionConfig;
         this.objectMapper = objectMapper;
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofMillis(Math.max(1000, properties.getAi().getTimeoutMs())))
@@ -49,23 +55,26 @@ public class OllamaAiProvider implements AiProvider {
 
     @Override
     public boolean isAvailable() {
-        return properties.getAi().getOllama().isEnabled();
+        return connectionConfig.ollama().available();
     }
 
     @Override
     public String modelId() {
-        return properties.getAi().getOllama().getModel();
+        return connectionConfig.ollama().model();
     }
 
     @Override
     public EnrichmentResponse enrich(EnrichmentRequest request) throws AiProviderException {
-        if (!isAvailable()) {
-            throw new AiProviderException("Ollama provider is not enabled (set CLEARREAD_AI_OLLAMA_ENABLED=true)");
+        AiConnectionConfigService.EffectiveOllama cfg = connectionConfig.ollama();
+        if (!cfg.available()) {
+            throw new AiProviderException(
+                    "Ollama provider is not configured. Set base URL/model under Admin → AI provider connection "
+                            + "(or CLEARREAD_AI_OLLAMA_ENABLED=true)."
+            );
         }
-        ClearReadProperties.Ai.Ollama cfg = properties.getAi().getOllama();
         try {
             Map<String, Object> body = new LinkedHashMap<>();
-            body.put("model", cfg.getModel());
+            body.put("model", cfg.model());
             body.put("stream", false);
             body.put("format", "json");
             body.put("messages", java.util.List.of(
@@ -74,12 +83,12 @@ public class OllamaAiProvider implements AiProvider {
             ));
             String json = objectMapper.writeValueAsString(body);
             HttpRequest httpRequest = HttpRequest.newBuilder()
-                    .uri(URI.create(trimSlash(cfg.getBaseUrl()) + "/api/chat"))
+                    .uri(URI.create(trimSlash(cfg.baseUrl()) + "/api/chat"))
                     .timeout(Duration.ofMillis(properties.getAi().getTimeoutMs()))
                     .header("Content-Type", "application/json")
                     .POST(HttpRequest.BodyPublishers.ofString(json))
                     .build();
-            log.info("Ollama enrich kind={} model={} excerpts={}", request.kind(), cfg.getModel(), request.excerpts().size());
+            log.info("Ollama enrich kind={} model={} excerpts={}", request.kind(), cfg.model(), request.excerpts().size());
             HttpResponse<String> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() >= 400) {
                 throw new AiProviderException("Ollama HTTP " + response.statusCode());
