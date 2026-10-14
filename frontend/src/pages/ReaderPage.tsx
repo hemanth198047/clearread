@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { apiFetch, formatApiError } from "../api/client";
 import { useAuth } from "../auth/AuthProvider";
@@ -14,6 +14,10 @@ type DocMeta = {
   originalSha256: string;
   formatId: string;
   currentRevisionId?: string;
+  originalMissing?: boolean;
+  cleardocMissing?: boolean;
+  storageOrphaned?: boolean;
+  recovery?: string;
 };
 
 type AcceptedEnrichment = {
@@ -72,6 +76,9 @@ export function ReaderPage() {
   const [maxViews, setMaxViews] = useState(50);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [exportFormats, setExportFormats] = useState<{ targetFormat: string; converterId: string }[]>([]);
+  const [replaceBusy, setReplaceBusy] = useState(false);
+  const [pasteRecovery, setPasteRecovery] = useState("");
+  const replaceInputRef = useRef<HTMLInputElement>(null);
 
   async function loadDiagnostics(docId: string, accessToken: string) {
     try {
@@ -129,10 +136,20 @@ export function ReaderPage() {
           if (cancelled) return;
           setMeta(m);
         }
+        if (m.originalMissing) {
+          setStatusNote(null);
+          setError("Original missing from storage — re-upload the file onto this document to rebuild ClearDoc.");
+          return;
+        }
         if (m.status !== "ready") {
           setStatusNote(null);
           setError(`Document status: ${m.status}`);
           await loadDiagnostics(id, token);
+          return;
+        }
+        if (m.cleardocMissing) {
+          setStatusNote(null);
+          setError("ClearDoc artifact missing from storage — use Reprocess to rebuild from the original.");
           return;
         }
         await loadReady(id, token);
@@ -145,29 +162,95 @@ export function ReaderPage() {
     };
   }, [id, token]);
 
-  async function onReprocess() {
-    if (!token || !meta) return;
-    setDoc(null);
-    setAcceptedOverlay(null);
-    setError(null);
-    setStatusNote("Reprocessing…");
-    await apiFetch(`/v1/documents/${meta.id}/reprocess`, token, { method: "POST", body: "{}" });
+  async function waitUntilReady(docId: string, accessToken: string) {
     for (let i = 0; i < 80; i++) {
       await new Promise((r) => setTimeout(r, 400));
-      const next = (await apiFetch(`/v1/documents/${meta.id}`, token)) as DocMeta;
+      const next = (await apiFetch(`/v1/documents/${docId}`, accessToken)) as DocMeta;
       setMeta(next);
-      if (next.status === "ready") {
-        await loadReady(meta.id, token);
+      if (next.status === "ready" && !next.originalMissing && !next.cleardocMissing) {
+        await loadReady(docId, accessToken);
         return;
       }
       if (next.status === "failed" || next.status === "cancelled") {
-        setError(`Reprocess ${next.status}`);
-        await loadDiagnostics(meta.id, token);
+        setError(`Processing ${next.status}`);
+        await loadDiagnostics(docId, accessToken);
         return;
       }
       setStatusNote(`Document status: ${next.status}…`);
     }
-    setError("Reprocess timed out");
+    setError("Processing timed out");
+  }
+
+  async function onReprocess() {
+    if (!token || !meta) return;
+    if (meta.originalMissing) {
+      setError("Original missing from storage — re-upload the file onto this document first.");
+      return;
+    }
+    setDoc(null);
+    setAcceptedOverlay(null);
+    setError(null);
+    setStatusNote("Reprocessing…");
+    try {
+      await apiFetch(`/v1/documents/${meta.id}/reprocess`, token, { method: "POST", body: "{}" });
+      await waitUntilReady(meta.id, token);
+    } catch (err) {
+      setStatusNote(null);
+      setError(formatApiError(err, "Reprocess"));
+    }
+  }
+
+  async function onReplaceOriginalFile(file: File) {
+    if (!token || !meta) return;
+    setReplaceBusy(true);
+    setDoc(null);
+    setAcceptedOverlay(null);
+    setError(null);
+    setStatusNote("Restoring original…");
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const updated = (await apiFetch(`/v1/documents/${meta.id}/replace-original`, token, {
+        method: "POST",
+        body: form,
+      })) as DocMeta;
+      setMeta(updated);
+      if (replaceInputRef.current) replaceInputRef.current.value = "";
+      await waitUntilReady(meta.id, token);
+    } catch (err) {
+      setStatusNote(null);
+      setError(formatApiError(err, "Replace original"));
+    } finally {
+      setReplaceBusy(false);
+    }
+  }
+
+  async function onReplaceOriginalPaste(e: FormEvent) {
+    e.preventDefault();
+    if (!token || !meta || !pasteRecovery.trim()) return;
+    setReplaceBusy(true);
+    setDoc(null);
+    setAcceptedOverlay(null);
+    setError(null);
+    setStatusNote("Restoring original from paste…");
+    try {
+      const updated = (await apiFetch(`/v1/documents/${meta.id}/replace-original`, token, {
+        method: "POST",
+        body: JSON.stringify({
+          content: pasteRecovery,
+          formatId: meta.formatId || "markdown",
+          filename: meta.title || "paste.md",
+        }),
+      })) as DocMeta;
+      setMeta(updated);
+      setPasteRecovery("");
+      await waitUntilReady(meta.id, token);
+    } catch (err) {
+      setStatusNote(null);
+      setError(formatApiError(err, "Replace original"));
+    } finally {
+      setReplaceBusy(false);
+    }
   }
 
   async function exportDoc(targetFormat: "markdown" | "html" | "pdf") {
@@ -267,37 +350,101 @@ export function ReaderPage() {
 
   if (error && meta && (meta.status === "failed" || meta.status === "cancelled" || !doc)) {
     const lastJobError = diagnostics?.jobs?.find((j) => j.lastError)?.lastError;
+    const needsReplace =
+      Boolean(meta.originalMissing) ||
+      /original (object )?missing/i.test(error) ||
+      /replace-original/i.test(error) ||
+      meta.recovery === "replace-original";
+    const canReprocess = !needsReplace;
     return (
       <section className="panel" role="alert">
-        <h1>Processing {meta.status === "failed" || meta.status === "cancelled" ? meta.status : "issue"}</h1>
+        <h1>
+          {needsReplace
+            ? "Original missing — re-upload"
+            : `Processing ${meta.status === "failed" || meta.status === "cancelled" ? meta.status : "issue"}`}
+        </h1>
         <p className="alert">{error}</p>
         {lastJobError ? <p className="muted">Last job error: {lastJobError}</p> : null}
-        <p className="muted">
-          Original checksum {meta.originalSha256?.slice(0, 16)}… — originals remain available for recovery.
-        </p>
+        {needsReplace ? (
+          <p className="muted">
+            Object storage no longer has the original for this library entry
+            {meta.originalSha256 ? ` (checksum ${meta.originalSha256.slice(0, 16)}…)` : ""}. Attach the file again
+            onto <strong>this</strong> document — same id — then ClearRead will rebuild ClearDoc.
+          </p>
+        ) : (
+          <p className="muted">
+            Original checksum {meta.originalSha256?.slice(0, 16)}… — originals remain available for recovery.
+          </p>
+        )}
+        {needsReplace ? (
+          <div className="recovery-panel">
+            <label className="recovery-upload">
+              Replace original
+              <input
+                ref={replaceInputRef}
+                type="file"
+                disabled={replaceBusy}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) void onReplaceOriginalFile(f);
+                }}
+              />
+            </label>
+            <form onSubmit={(e) => void onReplaceOriginalPaste(e)} className="recovery-paste">
+              <label>
+                Or paste source text
+                <textarea
+                  rows={6}
+                  value={pasteRecovery}
+                  disabled={replaceBusy}
+                  onChange={(e) => setPasteRecovery(e.target.value)}
+                  placeholder="Paste the original Markdown or text…"
+                />
+              </label>
+              <button type="submit" disabled={replaceBusy || !pasteRecovery.trim()}>
+                {replaceBusy ? "Restoring…" : "Restore from paste"}
+              </button>
+            </form>
+          </div>
+        ) : null}
         <div className="org-actions">
-          <button type="button" onClick={() => void onReprocess()}>
-            Reprocess
-          </button>
-          <button
-            type="button"
-            className="secondary"
-            onClick={async () => {
-              if (!token) return;
-              const buf = (await apiFetch(`/v1/documents/${meta.id}/original`, token)) as ArrayBuffer;
-              const blob = new Blob([buf]);
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement("a");
-              a.href = url;
-              a.download = meta.title || "original";
-              a.click();
-              URL.revokeObjectURL(url);
-            }}
-          >
-            Download original
-          </button>
+          {canReprocess ? (
+            <button type="button" onClick={() => void onReprocess()} disabled={replaceBusy}>
+              Reprocess
+            </button>
+          ) : null}
+          {!needsReplace ? (
+            <button
+              type="button"
+              className="secondary"
+              onClick={async () => {
+                if (!token) return;
+                try {
+                  const buf = (await apiFetch(`/v1/documents/${meta.id}/original`, token)) as ArrayBuffer;
+                  const blob = new Blob([buf]);
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = meta.title || "original";
+                  a.click();
+                  URL.revokeObjectURL(url);
+                } catch (err) {
+                  setError(formatApiError(err, "Download original"));
+                }
+              }}
+            >
+              Download original
+            </button>
+          ) : null}
           <Link to="/library">Back to library</Link>
+          <Link to="/">Upload from Home</Link>
         </div>
+        {statusNote ? (
+          <div className="status-bar">
+            <span className="status-dot busy" />
+            <span>{statusNote}</span>
+          </div>
+        ) : null}
       </section>
     );
   }

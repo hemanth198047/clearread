@@ -72,7 +72,14 @@ public class DocumentService {
         this.audit = audit;
     }
 
-    public record IngestResult(DocumentRecord document, boolean duplicateOfExisting) {
+    public record IngestResult(
+            DocumentRecord document,
+            boolean duplicateOfExisting,
+            boolean restoredStorage
+    ) {
+        public IngestResult(DocumentRecord document, boolean duplicateOfExisting) {
+            this(document, duplicateOfExisting, false);
+        }
     }
 
     @Transactional
@@ -89,6 +96,63 @@ public class DocumentService {
         return ingestBytes(
                 user, title, filename, contentType, text.getBytes(StandardCharsets.UTF_8), "paste", formatId, forceNew
         );
+    }
+
+    /**
+     * Replace (or restore) the original bytes on an existing document and enqueue transform.
+     * Primary recovery when S3/LocalStack was wiped but the library row remains.
+     */
+    @Transactional
+    public Map<String, Object> replaceOriginal(
+            UserRecord user, UUID documentId, String filename, String contentType, byte[] bytes
+    ) {
+        requireAuthor();
+        if (bytes == null || bytes.length == 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Empty content");
+        }
+        DocumentRecord doc = getForRead(user, documentId);
+        UUID tenantId = TenantContext.requireTenantId();
+        long maxBytes = Math.min(properties.getLimits().getMaxUploadBytes(),
+                workspaceSettings.getOrDefaults(tenantId).maxUploadBytes());
+        if (bytes.length > maxBytes) {
+            throw new ResponseStatusException(HttpStatus.PAYLOAD_TOO_LARGE, "Upload exceeds max size");
+        }
+
+        String formatId = transformService.detectFormat(filename, contentType);
+        if (formatId == null || !capabilities.supportsIngest(formatId)) {
+            // Keep the document's existing format when the new filename is ambiguous but the doc already has one.
+            if (doc.formatId() != null && capabilities.supportsIngest(doc.formatId())) {
+                formatId = doc.formatId();
+            } else {
+                String detail = formatId == null
+                        ? "Unsupported format — not recognized. See GET /v1/capabilities for ingestible formats."
+                        : "Unsupported format '" + formatId
+                        + "' — registered but not ingestible (or unknown). See GET /v1/capabilities.";
+                throw new ResponseStatusException(HttpStatus.UNSUPPORTED_MEDIA_TYPE, detail);
+            }
+        }
+
+        String sha = ObjectStorageService.sha256(bytes);
+        String key = storage.originalKey(tenantId, documentId, sha);
+        storage.putBytes(key, bytes, contentType != null ? contentType : "application/octet-stream");
+        String resolvedFilename = (filename != null && !filename.isBlank())
+                ? filename
+                : (doc.originalFilename() != null ? doc.originalFilename() : "original.bin");
+        documents.attachOriginal(tenantId, documentId, key, sha, bytes.length, resolvedFilename, formatId);
+        documents.updateSourceFetched(
+                tenantId, documentId, key, sha, bytes.length,
+                contentType != null ? contentType : "application/octet-stream",
+                resolvedFilename,
+                "{\"restored\":true,\"via\":\"replace-original\"}"
+        );
+
+        UUID jobId = enqueueTransform(tenantId, documentId, "replace:" + documentId + ":" + UUID.randomUUID());
+        DocumentRecord updated = documents.findByTenantAndId(tenantId, documentId).orElse(doc);
+        Map<String, Object> result = new LinkedHashMap<>(toMeta(updated, false, true));
+        result.put("jobId", jobId.toString());
+        result.put("replacedOriginal", true);
+        result.put("message", "Original restored on this document — processing ClearDoc.");
+        return result;
     }
 
     /**
@@ -142,41 +206,26 @@ public class DocumentService {
     public Map<String, Object> reprocess(UserRecord user, UUID documentId) {
         requireAuthor();
         DocumentRecord doc = getForRead(user, documentId);
-        if (doc.originalObjectKey() == null) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Original not available to reprocess");
-        }
-        // Fail fast if the original bytes are gone from object storage (e.g. LocalStack volume wipe).
-        if (!storage.exists(doc.originalObjectKey())) {
+        if (doc.originalObjectKey() == null || !storage.exists(doc.originalObjectKey())) {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
-                    "Original object missing from storage — re-upload or paste the file to rebuild ClearDoc"
+                    "Original object missing from storage — use Replace original on this document "
+                            + "(POST /v1/documents/" + documentId + "/replace-original) "
+                            + "or re-upload the same file to restore objects"
             );
         }
         UUID tenantId = TenantContext.requireTenantId();
-        documents.updateStatus(tenantId, documentId, "queued");
-        UUID jobId = UUID.randomUUID();
-        Map<String, Object> payload = new HashMap<>();
-        payload.put("documentId", documentId.toString());
-        payload.put("reprocess", true);
-        try {
-            jobs.enqueue(
-                    jobId,
-                    tenantId,
-                    "transform.document",
-                    objectMapper.writeValueAsString(payload),
-                    "reprocess:" + documentId + ":" + jobId
-            );
-        } catch (Exception e) {
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to enqueue reprocess job");
-        }
-        Map<String, Object> result = new LinkedHashMap<>(toMeta(documents.findByTenantAndId(tenantId, documentId).orElse(doc)));
+        UUID jobId = enqueueTransform(tenantId, documentId, "reprocess:" + documentId + ":" + UUID.randomUUID(), true);
+        Map<String, Object> result = new LinkedHashMap<>(
+                toMeta(documents.findByTenantAndId(tenantId, documentId).orElse(doc), false, true)
+        );
         result.put("jobId", jobId.toString());
         return result;
     }
 
     public Map<String, Object> diagnostics(UserRecord user, UUID documentId) {
         DocumentRecord doc = getForRead(user, documentId);
-        Map<String, Object> out = new LinkedHashMap<>(toMeta(doc));
+        Map<String, Object> out = new LinkedHashMap<>(toMeta(doc, false, true));
         out.put("revisions", documents.listRevisions(doc.tenantId(), doc.id()));
         out.put("jobs", jobs.listForDocument(doc.tenantId(), doc.id(), 20).stream().map(j -> {
             Map<String, Object> m = new LinkedHashMap<>();
@@ -229,7 +278,11 @@ public class DocumentService {
             Optional<DocumentRecord> existing = documents.findByTenantAndOriginalSha(tenantId, sha);
             if (existing.isPresent()
                     && documents.canRead(tenantId, existing.get().id(), user.id(), TenantContext.roleOrNull())) {
-                return new IngestResult(existing.get(), true);
+                DocumentRecord ex = existing.get();
+                if (needsStorageRestore(ex)) {
+                    return restoreSoftDedup(ex, filename, contentType, bytes, sourceKind, formatId, sha);
+                }
+                return new IngestResult(ex, true);
             }
         }
 
@@ -250,20 +303,93 @@ public class DocumentService {
         documents.insertSource(UUID.randomUUID(), tenantId, documentId, sourceKind, key, sha, bytes.length, contentType, filename);
         documents.insertAcl(tenantId, documentId, "user", user.id().toString(), "admin");
 
+        enqueueTransform(tenantId, documentId, "transform:" + documentId);
+        return new IngestResult(doc, false);
+    }
+
+    /**
+     * Soft-dedup hit after storage wipe: put original bytes back and re-queue ClearDoc for the same id.
+     */
+    private IngestResult restoreSoftDedup(
+            DocumentRecord existing,
+            String filename,
+            String contentType,
+            byte[] bytes,
+            String sourceKind,
+            String formatId,
+            String sha
+    ) {
+        UUID tenantId = existing.tenantId();
+        UUID documentId = existing.id();
+        boolean originalMissing = existing.originalObjectKey() == null
+                || !storage.exists(existing.originalObjectKey());
+        String key = existing.originalObjectKey() != null
+                ? existing.originalObjectKey()
+                : storage.originalKey(tenantId, documentId, sha);
+        // Always rewrite when missing; also rewrite when key/sha drifted so transform can succeed.
+        if (originalMissing || !key.equals(existing.originalObjectKey()) || !sha.equalsIgnoreCase(
+                existing.originalSha256() == null ? "" : existing.originalSha256())) {
+            key = storage.originalKey(tenantId, documentId, sha);
+            storage.putBytes(key, bytes, contentType != null ? contentType : "application/octet-stream");
+            String resolvedFilename = (filename != null && !filename.isBlank())
+                    ? filename
+                    : (existing.originalFilename() != null ? existing.originalFilename() : "original.bin");
+            documents.attachOriginal(
+                    tenantId, documentId, key, sha, bytes.length, resolvedFilename,
+                    formatId != null ? formatId : existing.formatId()
+            );
+            documents.updateSourceFetched(
+                    tenantId, documentId, key, sha, bytes.length,
+                    contentType != null ? contentType : "application/octet-stream",
+                    resolvedFilename,
+                    "{\"restored\":true,\"via\":\"soft-dedup-" + sourceKind + "\"}"
+            );
+        } else if (!storage.exists(key)) {
+            storage.putBytes(key, bytes, contentType != null ? contentType : "application/octet-stream");
+        }
+
+        enqueueTransform(tenantId, documentId, "restore:" + documentId + ":" + UUID.randomUUID());
+        DocumentRecord updated = documents.findByTenantAndId(tenantId, documentId).orElse(existing);
+        return new IngestResult(updated, true, true);
+    }
+
+    private boolean needsStorageRestore(DocumentRecord doc) {
+        if (doc.originalObjectKey() == null || !storage.exists(doc.originalObjectKey())) {
+            return true;
+        }
+        if (doc.currentRevisionId() == null) {
+            // Never finished a ClearDoc — safe to re-queue on soft-dedup.
+            return !"queued".equals(doc.status()) && !"processing".equals(doc.status())
+                    && !"fetching".equals(doc.status());
+        }
+        Optional<String> cleardocKey = documents.findCleardocKey(doc.tenantId(), doc.id(), doc.currentRevisionId());
+        return cleardocKey.isEmpty() || !storage.exists(cleardocKey.get());
+    }
+
+    private UUID enqueueTransform(UUID tenantId, UUID documentId, String idempotencyKey) {
+        return enqueueTransform(tenantId, documentId, idempotencyKey, false);
+    }
+
+    private UUID enqueueTransform(UUID tenantId, UUID documentId, String idempotencyKey, boolean reprocess) {
+        documents.updateStatus(tenantId, documentId, "queued");
+        UUID jobId = UUID.randomUUID();
         Map<String, Object> payload = new HashMap<>();
         payload.put("documentId", documentId.toString());
+        if (reprocess) {
+            payload.put("reprocess", true);
+        }
         try {
             jobs.enqueue(
-                    UUID.randomUUID(),
+                    jobId,
                     tenantId,
                     "transform.document",
                     objectMapper.writeValueAsString(payload),
-                    "transform:" + documentId
+                    idempotencyKey
             );
         } catch (Exception e) {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to enqueue job");
         }
-        return new IngestResult(doc, false);
+        return jobId;
     }
 
     public DocumentRecord getForRead(UserRecord user, UUID documentId) {
@@ -301,10 +427,24 @@ public class DocumentService {
 
     public byte[] downloadOriginal(UserRecord user, UUID documentId) {
         DocumentRecord doc = getForRead(user, documentId);
-        if (doc.originalObjectKey() == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Original not available");
+        if (doc.originalObjectKey() == null || !storage.exists(doc.originalObjectKey())) {
+            throw new ResponseStatusException(
+                    HttpStatus.NOT_FOUND,
+                    "Original object missing from storage — use Replace original on this document to restore"
+            );
         }
-        return storage.getBytes(doc.originalObjectKey());
+        try {
+            return storage.getBytes(doc.originalObjectKey());
+        } catch (RuntimeException e) {
+            if (ClearDocArtifactService.looksLikeMissingObject(e)) {
+                throw new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Original object missing from storage — use Replace original on this document to restore",
+                        e
+                );
+            }
+            throw e;
+        }
     }
 
     public ClearDoc getCleardoc(UserRecord user, UUID documentId) {
@@ -360,10 +500,20 @@ public class DocumentService {
     }
 
     public Map<String, Object> toMeta(DocumentRecord doc) {
-        return toMeta(doc, false);
+        return toMeta(doc, false, false);
     }
 
     public Map<String, Object> toMeta(DocumentRecord doc, boolean duplicateOfExisting) {
+        return toMeta(doc, duplicateOfExisting, false);
+    }
+
+    public Map<String, Object> toMeta(DocumentRecord doc, boolean duplicateOfExisting, boolean checkStorage) {
+        return toMeta(doc, duplicateOfExisting, false, checkStorage);
+    }
+
+    public Map<String, Object> toMeta(
+            DocumentRecord doc, boolean duplicateOfExisting, boolean restoredStorage, boolean checkStorage
+    ) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("id", doc.id().toString());
         m.put("tenantId", doc.tenantId().toString());
@@ -374,11 +524,49 @@ public class DocumentService {
         m.put("originalByteLength", doc.originalByteLength() == null ? 0 : doc.originalByteLength());
         m.put("originalFilename", doc.originalFilename() == null ? "" : doc.originalFilename());
         m.put("currentRevisionId", doc.currentRevisionId() == null ? "" : doc.currentRevisionId().toString());
+        if (checkStorage) {
+            boolean originalMissing = isMissingObject(doc.originalObjectKey());
+            boolean cleardocMissing = false;
+            if (!originalMissing && doc.currentRevisionId() != null) {
+                Optional<String> key = documents.findCleardocKey(doc.tenantId(), doc.id(), doc.currentRevisionId());
+                cleardocMissing = key.isEmpty() || isMissingObject(key.get());
+            } else if (originalMissing && "ready".equals(doc.status())) {
+                // Ready with no original bytes ⇒ ClearDoc is also unusable.
+                cleardocMissing = true;
+            }
+            m.put("originalMissing", originalMissing);
+            m.put("cleardocMissing", cleardocMissing);
+            if (originalMissing || cleardocMissing) {
+                m.put("storageOrphaned", true);
+                m.put("recovery", originalMissing ? "replace-original" : "reprocess");
+            }
+        }
         if (duplicateOfExisting) {
             m.put("duplicateOfExisting", true);
-            m.put("message", "Identical content already in your library — opening existing document.");
+            if (restoredStorage) {
+                m.put("restoredStorage", true);
+                m.put(
+                        "message",
+                        "Identical content matched a library document whose storage objects were missing — "
+                                + "restored original and reprocessing ClearDoc."
+                );
+            } else {
+                m.put("message", "Identical content already in your library — opening existing document.");
+            }
         }
         return m;
+    }
+
+    private boolean isMissingObject(String key) {
+        if (key == null || key.isBlank()) {
+            return true;
+        }
+        try {
+            return !storage.exists(key);
+        } catch (RuntimeException e) {
+            // Treat unreachable storage as unknown (not missing) so meta reads still succeed.
+            return false;
+        }
     }
 
     private void requireAuthor() {

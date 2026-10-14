@@ -7,6 +7,11 @@ export type RecentDocMeta = {
   formatId: string;
   jobId?: string;
   duplicateOfExisting?: boolean;
+  restoredStorage?: boolean;
+  originalMissing?: boolean;
+  cleardocMissing?: boolean;
+  storageOrphaned?: boolean;
+  recovery?: string;
   message?: string;
 };
 

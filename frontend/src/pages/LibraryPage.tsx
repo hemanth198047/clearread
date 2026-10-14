@@ -14,6 +14,9 @@ type Doc = {
   favorite: boolean;
   updatedAt: string;
   deleted?: boolean;
+  originalMissing?: boolean;
+  storageOrphaned?: boolean;
+  recovery?: string;
 };
 
 /** Render server-sanitized snippet HTML allowing only <mark> (no dangerouslySetInnerHTML). */
@@ -266,9 +269,20 @@ export function LibraryPage() {
                   <div className="library-meta muted">
                     <span className="format-chip">{d.formatId}</span>
                     <span>{d.status}</span>
+                    {d.originalMissing || d.storageOrphaned ? (
+                      <span className="orphan-chip" title="Original bytes missing from object storage">
+                        original missing — re-upload
+                      </span>
+                    ) : null}
                     {d.updatedAt ? <span>{formatUpdated(d.updatedAt)}</span> : null}
                   </div>
                   {d.description ? <div className="muted library-desc">{d.description}</div> : null}
+                  {d.originalMissing || d.storageOrphaned ? (
+                    <p className="muted library-desc">
+                      Open this document to attach a new original onto the same id, or re-upload the same file from
+                      Ingest (soft-dedup restores storage).
+                    </p>
+                  ) : null}
                 </div>
                 <button type="button" className="secondary" onClick={() => void toggleFavorite(d.id, d.favorite)}>
                   {d.favorite ? "★ Favorited" : "☆ Favorite"}

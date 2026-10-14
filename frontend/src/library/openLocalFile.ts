@@ -11,6 +11,7 @@ export type IngestedDocMeta = {
   formatId: string;
   jobId?: string;
   duplicateOfExisting?: boolean;
+  restoredStorage?: boolean;
   message?: string;
 };
 
@@ -68,7 +69,9 @@ export async function openScannedFileInReader(
     body: form,
   })) as IngestedDocMeta;
 
-  if (created.duplicateOfExisting) {
+  if (created.restoredStorage) {
+    options?.onProgress?.(created.message ?? "Restored missing storage — reprocessing…");
+  } else if (created.duplicateOfExisting) {
     options?.onProgress?.(created.message ?? "Opening existing document…");
   }
   if (created.status !== "ready") {

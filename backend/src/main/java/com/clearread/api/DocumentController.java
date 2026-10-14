@@ -67,7 +67,9 @@ public class DocumentController {
                 file.getBytes(),
                 force
         );
-        return documentService.toMeta(result.document(), result.duplicateOfExisting());
+        return documentService.toMeta(
+                result.document(), result.duplicateOfExisting(), result.restoredStorage(), true
+        );
     }
 
     @PostMapping(path = "/paste", consumes = MediaType.APPLICATION_JSON_VALUE)
@@ -76,7 +78,9 @@ public class DocumentController {
         DocumentService.IngestResult result = documentService.ingestPaste(
                 user, body.title(), body.formatId(), body.content(), Boolean.TRUE.equals(body.forceNew())
         );
-        return documentService.toMeta(result.document(), result.duplicateOfExisting());
+        return documentService.toMeta(
+                result.document(), result.duplicateOfExisting(), result.restoredStorage(), true
+        );
     }
 
     @PostMapping(path = "/from-url", consumes = MediaType.APPLICATION_JSON_VALUE)
@@ -95,6 +99,49 @@ public class DocumentController {
         return documentService.reprocess(user, id);
     }
 
+    /**
+     * Restore or replace original bytes on an existing document (same id), then process ClearDoc.
+     * Used when object storage was wiped but the library row remains.
+     */
+    @PostMapping(path = "/{id}/replace-original", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    Map<String, Object> replaceOriginal(
+            HttpServletRequest request,
+            @PathVariable("id") UUID id,
+            @RequestPart("file") MultipartFile file
+    ) throws IOException {
+        UserRecord user = MeController.requireUser(request);
+        return documentService.replaceOriginal(
+                user, id, file.getOriginalFilename(), file.getContentType(), file.getBytes()
+        );
+    }
+
+    public record ReplacePasteRequest(@NotBlank String content, String formatId, String filename) {
+    }
+
+    @PostMapping(path = "/{id}/replace-original", consumes = MediaType.APPLICATION_JSON_VALUE)
+    Map<String, Object> replaceOriginalPaste(
+            HttpServletRequest request,
+            @PathVariable("id") UUID id,
+            @RequestBody ReplacePasteRequest body
+    ) {
+        UserRecord user = MeController.requireUser(request);
+        DocumentRecord existing = documentService.getForRead(user, id);
+        String formatId = body.formatId() != null && !body.formatId().isBlank()
+                ? body.formatId()
+                : existing.formatId();
+        String filename = body.filename() != null && !body.filename().isBlank()
+                ? body.filename()
+                : (existing.originalFilename() != null ? existing.originalFilename() : "paste" + ".txt");
+        byte[] bytes = body.content().getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        String contentType = switch (formatId == null ? "" : formatId) {
+            case "markdown" -> "text/markdown";
+            case "json" -> "application/json";
+            case "yaml" -> "application/yaml";
+            default -> "text/plain";
+        };
+        return documentService.replaceOriginal(user, id, filename, contentType, bytes);
+    }
+
     @GetMapping("/{id}/diagnostics")
     Map<String, Object> diagnostics(HttpServletRequest request, @PathVariable("id") UUID id) {
         UserRecord user = MeController.requireUser(request);
@@ -104,7 +151,7 @@ public class DocumentController {
     @GetMapping("/{id}")
     Map<String, Object> get(HttpServletRequest request, @PathVariable("id") UUID id) {
         UserRecord user = MeController.requireUser(request);
-        return documentService.toMeta(documentService.getForRead(user, id));
+        return documentService.toMeta(documentService.getForRead(user, id), false, true);
     }
 
     @GetMapping("/{id}/original")
