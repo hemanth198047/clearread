@@ -2,7 +2,7 @@
 
 **Status:** Complete  
 **Branch:** `cursor/phase-5-6-hardening-f2a6`  
-**Prior merged:** https://github.com/hemanth198047/mdbeautifier/pull/1 → `main` @ `74eb3c5`
+**Prior merged:** https://github.com/hemanth198047/clearread/pull/1 → `main` @ `74eb3c5`
 
 ## 1. What works
 

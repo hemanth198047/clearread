@@ -7,9 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.4] — 2026-10-14
+
 ### Changed
 
-- Docs: canonical clone / remote URL is **`https://github.com/hemanth198047/clearread`**. Owner-only GitHub rename steps and `git remote set-url` note live in [docs/ops/repo-rename.md](docs/ops/repo-rename.md). Agents cannot rename (`HTTP 403`); Java package remains `com.clearread`.
+- **Repo rename complete:** GitHub is **`hemanth198047/clearread`** (formerly `mdbeautifier`). Docs, clone URLs, badges, and phase PR permalinks use the new name; [docs/ops/repo-rename.md](docs/ops/repo-rename.md) records remotes and the former name. Java package remains `com.clearread`.
 
 ## [1.1.3] — 2026-10-13
 
@@ -25,7 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Notes
 
-- Target GitHub repo name: **`hemanth198047/clearread`** (rename in GitHub Settings if still `mdbeautifier`; agents cannot rename due to permissions). Old URL redirects after rename; clone/docs should use the new name.
+- Target GitHub repo name: **`hemanth198047/clearread`** (completed in 1.1.4; old `mdbeautifier` URL redirects).
 
 ## [1.1.2] — 2026-10-13
 

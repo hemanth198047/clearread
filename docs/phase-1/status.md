@@ -2,7 +2,7 @@
 
 **Status:** Exit package ready — **stop; do not start Phase 2**  
 **Authorized:** 2026-10-10 (Phase 0 approved; Q1–Q8 defaults accepted)  
-**PR:** https://github.com/hemanth198047/mdbeautifier/pull/1
+**PR:** https://github.com/hemanth198047/clearread/pull/1
 
 ## Delivered
 
