@@ -192,6 +192,11 @@ public class JobWorker {
                 .orElseThrow(() -> new IllegalStateException("Document not found"));
 
         documentRepository.updateStatus(job.tenantId(), documentId, "processing");
+        if (doc.originalObjectKey() == null || !storage.exists(doc.originalObjectKey())) {
+            throw new IllegalStateException(
+                    "Original object missing from storage — cannot rebuild ClearDoc; re-upload the file"
+            );
+        }
         byte[] original = storage.getBytes(doc.originalObjectKey());
         String sha = ObjectStorageService.sha256(original);
         if (doc.originalSha256() != null && !doc.originalSha256().equalsIgnoreCase(sha)) {
@@ -214,6 +219,10 @@ public class JobWorker {
         byte[] json = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsBytes(cleardoc);
         String key = storage.cleardocKey(job.tenantId(), documentId, revisionId);
         var stored = storage.putBytes(key, json, "application/json");
+        // Confirm the artifact is readable before marking the document ready (avoids ready+404 races).
+        if (!storage.exists(stored.key())) {
+            throw new IllegalStateException("ClearDoc write did not persist to object storage");
+        }
 
         documentRepository.insertRevision(
                 revisionId,

@@ -10,7 +10,10 @@ import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.HeadBucketRequest;
+import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
+import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -73,6 +76,26 @@ public class ObjectStorageService {
                         .build()
         );
         return response.asByteArray();
+    }
+
+    /** True when the object exists in the configured bucket. */
+    public boolean exists(String key) {
+        try {
+            s3.headObject(
+                    HeadObjectRequest.builder()
+                            .bucket(properties.getStorage().getBucket())
+                            .key(key)
+                            .build()
+            );
+            return true;
+        } catch (NoSuchKeyException e) {
+            return false;
+        } catch (S3Exception e) {
+            if (e.statusCode() == 404) {
+                return false;
+            }
+            throw e;
+        }
     }
 
     public static String sha256(byte[] bytes) {

@@ -12,6 +12,7 @@ export type CapabilityFormat = {
 export type Capabilities = {
   registryVersion?: string;
   formats?: CapabilityFormat[];
+  exports?: { note?: string; converters?: { targetFormat: string; converterId: string }[] };
 };
 
 /** Default upload / scan size limit (matches API clearread.limits.max-upload-bytes). */

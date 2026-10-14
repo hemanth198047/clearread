@@ -1,5 +1,6 @@
 package com.clearread.api;
 
+import com.clearread.documents.ClearDocArtifactService;
 import com.clearread.documents.DocumentRepository;
 import com.clearread.sharing.ShareService;
 import com.clearread.storage.ObjectStorageService;
@@ -13,11 +14,9 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
-import tools.jackson.databind.ObjectMapper;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.UUID;
 
 @RestController
 @RequestMapping("/v1/preview")
@@ -26,18 +25,18 @@ public class PreviewController {
     private final ShareService shares;
     private final DocumentRepository documents;
     private final ObjectStorageService storage;
-    private final ObjectMapper objectMapper;
+    private final ClearDocArtifactService clearDocArtifacts;
 
     public PreviewController(
             ShareService shares,
             DocumentRepository documents,
             ObjectStorageService storage,
-            ObjectMapper objectMapper
+            ClearDocArtifactService clearDocArtifacts
     ) {
         this.shares = shares;
         this.documents = documents;
         this.storage = storage;
-        this.objectMapper = objectMapper;
+        this.clearDocArtifacts = clearDocArtifacts;
     }
 
     @GetMapping("/{token}")
@@ -64,11 +63,7 @@ public class PreviewController {
         }
         String key = documents.findCleardocKey(access.tenantId(), access.documentId(), access.revisionId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "ClearDoc missing"));
-        try {
-            return objectMapper.readValue(storage.getBytes(key), ClearDoc.class);
-        } catch (Exception e) {
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to read ClearDoc");
-        }
+        return clearDocArtifacts.read(key, access.documentId());
     }
 
     @GetMapping("/{token}/original")
@@ -88,10 +83,10 @@ public class PreviewController {
     }
 
     private static String clientKey(HttpServletRequest request) {
-        String xf = request.getHeader("X-Forwarded-For");
-        if (xf != null && !xf.isBlank()) {
-            return xf.split(",")[0].trim();
+        String forwarded = request.getHeader("X-Forwarded-For");
+        if (forwarded != null && !forwarded.isBlank()) {
+            return forwarded.split(",")[0].trim();
         }
-        return request.getRemoteAddr();
+        return request.getRemoteAddr() == null ? "unknown" : request.getRemoteAddr();
     }
 }

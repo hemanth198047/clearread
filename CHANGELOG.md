@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.6] — 2026-10-14
+
+### Fixed
+
+- **ClearDoc open HTTP 500:** `GET /v1/documents/{id}/cleardoc` wrapped every storage/JSON failure as opaque `"Failed to read ClearDoc"` (500). Missing S3/LocalStack objects (common after a volume wipe while Postgres still says `ready`) and corrupt JSON now return **404** / **409** with an actionable Reprocess message; the real exception is logged server-side. Shared/preview ClearDoc reads use the same path.
+- **Reprocess when original is gone:** Reprocess fails fast with **409** if the original object is missing from storage (instead of enqueueing a doomed job). Transform verifies the original exists and that the new ClearDoc write persisted before marking `ready`.
+- **Duplicate `/v1/capabilities` on document open:** Reader and Home now share the module-level capabilities cache (TTL + in-flight dedupe) that Library already used, so opening a document no longer fires an extra uncached capabilities fetch. **v1.2.5** reader-preferences loop fix remains on `main`.
+
+### Tests
+
+- `ClearDocArtifactServiceTest` / `DocumentServiceClearDocReadTest`: missing key → 404, corrupt JSON → 409, reprocess gates on original existence.
+
 ## [1.2.5] — 2026-10-14
 
 ### Fixed

@@ -6,6 +6,7 @@ import { useAuth } from "../auth/AuthProvider";
 import { DEMO_ACCOUNTS, useBranding } from "../branding/BrandingProvider";
 import { LocalFileNav } from "../library/LocalFileNav";
 import { useSharedLocalLibrary } from "../library/LocalLibraryProvider";
+import { fetchCapabilitiesCached } from "../library/useLocalLibrary";
 
 type DocMeta = RecentDocMeta;
 
@@ -68,13 +69,17 @@ export function HomePage() {
   }, [supportedFormats]);
 
   useEffect(() => {
-    apiFetch("/v1/capabilities", null)
-      .then((data) => {
-        const caps = data as Capabilities;
-        setCapabilities(caps);
-        setApiReachable(true);
-        const first = caps.formats?.find((f) => f.ingest === "supported");
-        if (first?.formatId) setFormatId((prev) => prev || first.formatId);
+    void fetchCapabilitiesCached()
+      .then((result) => {
+        if (result.source === "api" && result.data) {
+          setCapabilities(result.data as Capabilities);
+          setApiReachable(true);
+          const first = result.data.formats?.find((f) => f.ingest === "supported");
+          if (first?.formatId) setFormatId((prev) => prev || first.formatId);
+        } else {
+          setCapabilities(null);
+          setApiReachable(false);
+        }
       })
       .catch((e) => {
         setCapabilities(null);
