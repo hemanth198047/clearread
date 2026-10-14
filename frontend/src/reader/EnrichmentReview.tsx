@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { apiFetch } from "../api/client";
 
 type Enrichment = {
@@ -20,6 +21,14 @@ type AiStatus = {
   usageToday: number;
   aiDailyQuota: number;
   documentReady: boolean;
+  providerAvailable?: boolean;
+  providerModelId?: string;
+  configurePath?: string;
+  connection?: {
+    ollamaAvailable?: boolean;
+    externalAvailable?: boolean;
+    apiKeyConfigured?: boolean;
+  };
 };
 
 const KINDS = [
@@ -123,12 +132,22 @@ export function EnrichmentReview({ documentId, token, sourceOutline, acceptedOve
     return <p className="muted">Loading AI status…</p>;
   }
 
+  const configureTo = status.configurePath || "/admin#ai-provider";
+  const providerMissing =
+    status.providerAvailable === false ||
+    (typeof error === "string" && error.toLowerCase().includes("not available/configured"));
+
   if (!status.aiEnabled) {
     return (
       <aside className="enrichment-panel" aria-label="AI enrichment">
         <h2>AI enrichment</h2>
         <p className="muted">
           Disabled by organization policy. Enable under Admin → Optional AI enrichment. The reader works without AI.
+        </p>
+        <p>
+          <Link className="button secondary" to={configureTo}>
+            Configure AI
+          </Link>
         </p>
       </aside>
     );
@@ -139,13 +158,53 @@ export function EnrichmentReview({ documentId, token, sourceOutline, acceptedOve
       <h2>AI enrichment review</h2>
       <p className="muted">
         Derived artifacts only — source ClearDoc is never silently mutated. Provider{" "}
-        <code>{status.aiProviderId}</code> · usage {status.usageToday}/{status.aiDailyQuota}
+        <code>{status.aiProviderId}</code>
+        {status.providerModelId ? (
+          <>
+            {" "}
+            / <code>{status.providerModelId}</code>
+          </>
+        ) : null}{" "}
+        · usage {status.usageToday}/{status.aiDailyQuota}
       </p>
-      {error && <p role="alert">{error}</p>}
+      <div className="status-bar">
+        <span className={`status-dot${status.providerAvailable === false ? " err" : ""}`} />
+        <span>
+          {status.providerAvailable === false
+            ? `Provider '${status.aiProviderId}' is not available/configured`
+            : `Provider '${status.aiProviderId}' connected`}
+        </span>
+      </div>
+      {providerMissing && (
+        <p className="alert" role="status">
+          Configure Ollama URL/model or an external API key under Admin → AI provider connection.
+          <br />
+          <Link className="button secondary" to={configureTo}>
+            Configure AI provider
+          </Link>
+        </p>
+      )}
+      {error && (
+        <p role="alert">
+          {error}
+          {error.toLowerCase().includes("not available/configured") && (
+            <>
+              {" "}
+              <Link to={configureTo}>Configure</Link>
+            </>
+          )}
+        </p>
+      )}
 
       <div className="enrichment-actions">
         {KINDS.map((k) => (
-          <button key={k.id} type="button" className="secondary" disabled={busy} onClick={() => void requestKind(k.id)}>
+          <button
+            key={k.id}
+            type="button"
+            className="secondary"
+            disabled={busy || status.providerAvailable === false}
+            onClick={() => void requestKind(k.id)}
+          >
             {k.label}
           </button>
         ))}

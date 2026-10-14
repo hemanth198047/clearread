@@ -16,8 +16,9 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * Configurable external provider seam. Disabled by default. Requires workspace
- * ai_allow_external=true and ai_local_only=false. API key is never logged.
+ * Configurable external / OpenAI-compatible provider seam. Disabled by default.
+ * Requires workspace ai_allow_external=true and ai_local_only=false.
+ * API key is never logged and never echoed in full from the Admin API.
  */
 @Component
 public class ExternalAiProviderSeam implements AiProvider {
@@ -26,11 +27,17 @@ public class ExternalAiProviderSeam implements AiProvider {
     private static final Logger log = LoggerFactory.getLogger(ExternalAiProviderSeam.class);
 
     private final ClearReadProperties properties;
+    private final AiConnectionConfigService connectionConfig;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
 
-    public ExternalAiProviderSeam(ClearReadProperties properties, ObjectMapper objectMapper) {
+    public ExternalAiProviderSeam(
+            ClearReadProperties properties,
+            AiConnectionConfigService connectionConfig,
+            ObjectMapper objectMapper
+    ) {
         this.properties = properties;
+        this.connectionConfig = connectionConfig;
         this.objectMapper = objectMapper;
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofMillis(Math.max(1000, properties.getAi().getTimeoutMs())))
@@ -49,22 +56,23 @@ public class ExternalAiProviderSeam implements AiProvider {
 
     @Override
     public boolean isAvailable() {
-        ClearReadProperties.Ai.External ext = properties.getAi().getExternal();
-        return ext.isEnabled() && ext.getBaseUrl() != null && !ext.getBaseUrl().isBlank();
+        return connectionConfig.external().available();
     }
 
     @Override
     public String modelId() {
-        String model = properties.getAi().getExternal().getModel();
+        String model = connectionConfig.external().model();
         return model == null || model.isBlank() ? "external-default" : model;
     }
 
     @Override
     public EnrichmentResponse enrich(EnrichmentRequest request) throws AiProviderException {
-        if (!isAvailable()) {
-            throw new AiProviderException("External AI provider is not configured");
+        AiConnectionConfigService.EffectiveExternal cfg = connectionConfig.external();
+        if (!cfg.available()) {
+            throw new AiProviderException(
+                    "External AI provider is not configured. Set base URL (and API key) under Admin → AI provider connection."
+            );
         }
-        ClearReadProperties.Ai.External cfg = properties.getAi().getExternal();
         try {
             Map<String, Object> body = new LinkedHashMap<>();
             body.put("model", modelId());
@@ -83,12 +91,12 @@ public class ExternalAiProviderSeam implements AiProvider {
             }).toList());
 
             HttpRequest.Builder builder = HttpRequest.newBuilder()
-                    .uri(URI.create(cfg.getBaseUrl()))
+                    .uri(URI.create(cfg.baseUrl()))
                     .timeout(Duration.ofMillis(properties.getAi().getTimeoutMs()))
                     .header("Content-Type", "application/json")
                     .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(body)));
-            if (cfg.getApiKey() != null && !cfg.getApiKey().isBlank()) {
-                builder.header("Authorization", "Bearer " + cfg.getApiKey());
+            if (cfg.apiKeyConfigured()) {
+                builder.header("Authorization", "Bearer " + cfg.apiKey());
             }
             log.info("External enrich kind={} model={} excerpts={}", request.kind(), modelId(), request.excerpts().size());
             HttpResponse<String> response = httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofString());

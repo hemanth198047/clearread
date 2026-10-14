@@ -135,9 +135,20 @@ services:
       # Local/demo: unlimited authenticated API (0). Public edges still use CLEARREAD_PUBLIC_API_RPM.
       CLEARREAD_API_RPM: ${CLEARREAD_API_RPM:-0}
       CLEARREAD_PUBLIC_API_RPM: ${CLEARREAD_PUBLIC_API_RPM:-120}
+      # Optional AI (disabled until Admin enables connection or CLEARREAD_AI_*_ENABLED=true).
+      # From the API container, host Ollama is reached via host.docker.internal (extra_hosts below).
+      CLEARREAD_AI_OLLAMA_URL: ${CLEARREAD_AI_OLLAMA_URL:-http://host.docker.internal:11434}
+      CLEARREAD_AI_OLLAMA_MODEL: ${CLEARREAD_AI_OLLAMA_MODEL:-llama3.2}
+      CLEARREAD_AI_OLLAMA_ENABLED: ${CLEARREAD_AI_OLLAMA_ENABLED:-false}
+      CLEARREAD_AI_EXTERNAL_ENABLED: ${CLEARREAD_AI_EXTERNAL_ENABLED:-false}
+      CLEARREAD_AI_EXTERNAL_URL: ${CLEARREAD_AI_EXTERNAL_URL:-}
+      CLEARREAD_AI_EXTERNAL_API_KEY: ${CLEARREAD_AI_EXTERNAL_API_KEY:-}
+      CLEARREAD_AI_EXTERNAL_MODEL: ${CLEARREAD_AI_EXTERNAL_MODEL:-}
       JAVA_TOOL_OPTIONS: "-Djava.net.useSystemProxies=false"
-      NO_PROXY: "db,minio,keycloak,localhost,127.0.0.1"
-      no_proxy: "db,minio,keycloak,localhost,127.0.0.1"
+      NO_PROXY: "db,minio,keycloak,localhost,127.0.0.1,host.docker.internal"
+      no_proxy: "db,minio,keycloak,localhost,127.0.0.1,host.docker.internal"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "${CLEARREAD_API_PORT:-8080}:8080"
     # Optional: mount host folders for a future server-side scan-roots feature.
