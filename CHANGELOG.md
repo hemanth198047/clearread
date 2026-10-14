@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.10] — 2026-10-14
+
+### Added
+
+- **External provider dropdown:** Admin → AI provider connection offers curated providers (OpenAI, Anthropic, Azure OpenAI, Groq, OpenRouter, Custom). Selecting a provider fills base URL + model defaults; user mainly pastes an API key. Advanced URL override stays collapsed unless Azure/Custom.
+- **Main-app AI enabled chrome:** Topbar chip, Settings status panel, and Home cue when workspace AI enrichment is on (with connected vs provider-missing states). Not Admin-only.
+- **OpenAI-compatible + Anthropic protocols:** External seam calls Chat Completions or Anthropic Messages when the configured URL matches; legacy custom enrich POST remains for other endpoints. Ollama path unchanged.
+
+### Tests
+
+- Frontend: `externalProviderPresets`, `AiStatusChrome`; backend: `ExternalAiProviderSeamTest` protocol detection.
+
 ## [1.2.9] — 2026-10-14
 
 ### Added

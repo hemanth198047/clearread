@@ -1,5 +1,12 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import {
+  EXTERNAL_PROVIDER_PRESETS,
+  applyPreset,
+  matchPresetFromBaseUrl,
+  presetById,
+  type ExternalProviderPresetId,
+} from "../ai/externalProviderPresets";
 import { apiFetch, formatApiError } from "../api/client";
 import { useAuth } from "../auth/AuthProvider";
 
@@ -59,6 +66,9 @@ export function AdminPage() {
   const [aiConnection, setAiConnection] = useState<AiConnection | null>(null);
   const [apiKeyDraft, setApiKeyDraft] = useState("");
   const [clearApiKey, setClearApiKey] = useState(false);
+  const [externalPresetId, setExternalPresetId] = useState<ExternalProviderPresetId>("openai");
+  const [showExternalAdvanced, setShowExternalAdvanced] = useState(false);
+  const [customModelDraft, setCustomModelDraft] = useState(false);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [invites, setInvites] = useState<Invite[]>([]);
   const [inviteEmail, setInviteEmail] = useState("");
@@ -78,6 +88,11 @@ export function AdminPage() {
         setSettings(s);
         const conn = (await apiFetch(`/v1/tenants/${me.activeTenantId}/ai-connection`, token)) as AiConnection;
         setAiConnection(conn);
+        const matched = matchPresetFromBaseUrl(conn.externalBaseUrl);
+        setExternalPresetId(matched);
+        const preset = presetById(matched);
+        setShowExternalAdvanced(Boolean(preset.expandAdvancedByDefault) || matched === "custom");
+        setCustomModelDraft(Boolean(conn.externalModel) && !preset.models.includes(conn.externalModel));
         if (me.activeRole === "admin") {
           const j = (await apiFetch(`/v1/tenants/${me.activeTenantId}/jobs`, token)) as Job[];
           setJobs(j);
@@ -129,6 +144,22 @@ export function AdminPage() {
     } catch (e) {
       setError(formatApiError(e, "Settings"));
     }
+  }
+
+  const externalPreset = useMemo(() => presetById(externalPresetId), [externalPresetId]);
+
+  function selectExternalPreset(id: ExternalProviderPresetId) {
+    if (!aiConnection) return;
+    setExternalPresetId(id);
+    const next = applyPreset(id, aiConnection);
+    setAiConnection({
+      ...aiConnection,
+      externalEnabled: true,
+      externalBaseUrl: next.externalBaseUrl,
+      externalModel: next.externalModel,
+    });
+    setShowExternalAdvanced(next.expandAdvanced);
+    setCustomModelDraft(false);
   }
 
   async function saveAiConnection() {
@@ -368,8 +399,8 @@ export function AdminPage() {
             <div className="ai-connection-block" data-testid="ai-provider-connection">
               <h3>AI provider connection</h3>
               <p className="muted">
-                Configure Ollama base URL/model or an external HTTP endpoint and API key. Keys are stored server-side
-                and never echoed in full. Env vars remain a bootstrap fallback (
+                Pick a known external provider (or Custom), choose a model, and paste an API key. Ollama stays local.
+                Keys are stored server-side and never echoed in full. Env vars remain a bootstrap fallback (
                 <code>CLEARREAD_AI_*</code>
                 ). Compose default Ollama URL: <code>http://host.docker.internal:11434</code>.
               </p>
@@ -385,6 +416,8 @@ export function AdminPage() {
                   {aiConnection.apiKeyConfigured ? ` · key ${aiConnection.apiKeyHint}` : " · no API key"}
                 </span>
               </div>
+
+              <h4 className="ai-connection-subhead">Ollama (local)</h4>
               <div className="admin-grid">
                 <label className="check">
                   <input
@@ -415,6 +448,10 @@ export function AdminPage() {
                     disabled={role !== "admin"}
                   />
                 </label>
+              </div>
+
+              <h4 className="ai-connection-subhead">External provider</h4>
+              <div className="admin-grid ai-external-grid" data-testid="ai-external-provider">
                 <label className="check">
                   <input
                     type="checkbox"
@@ -422,35 +459,84 @@ export function AdminPage() {
                     onChange={(e) => setAiConnection({ ...aiConnection, externalEnabled: e.target.checked })}
                     disabled={role !== "admin"}
                   />
-                  Enable external HTTP provider
+                  Enable external provider
                 </label>
                 <label>
-                  External base URL
-                  <input
-                    type="url"
-                    value={aiConnection.externalBaseUrl}
-                    placeholder={aiConnection.defaults?.externalBaseUrl || "https://api.example.com/v1/enrich"}
-                    onChange={(e) => setAiConnection({ ...aiConnection, externalBaseUrl: e.target.value })}
+                  Provider
+                  <select
+                    data-testid="external-provider-select"
+                    value={externalPresetId}
+                    onChange={(e) => selectExternalPreset(e.target.value as ExternalProviderPresetId)}
                     disabled={role !== "admin"}
-                  />
+                  >
+                    {EXTERNAL_PROVIDER_PRESETS.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.label}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="field-hint muted">{externalPreset.description}</span>
                 </label>
                 <label>
-                  External model
-                  <input
-                    type="text"
-                    value={aiConnection.externalModel}
-                    placeholder={aiConnection.defaults?.externalModel || "gpt-4o-mini"}
-                    onChange={(e) => setAiConnection({ ...aiConnection, externalModel: e.target.value })}
-                    disabled={role !== "admin"}
-                  />
+                  Model
+                  {!customModelDraft && externalPreset.models.length > 0 ? (
+                    <select
+                      data-testid="external-model-select"
+                      value={
+                        externalPreset.models.includes(aiConnection.externalModel)
+                          ? aiConnection.externalModel
+                          : externalPreset.defaultModel
+                      }
+                      onChange={(e) => {
+                        if (e.target.value === "__custom__") {
+                          setCustomModelDraft(true);
+                          return;
+                        }
+                        setAiConnection({ ...aiConnection, externalModel: e.target.value });
+                      }}
+                      disabled={role !== "admin"}
+                    >
+                      {externalPreset.models.map((m) => (
+                        <option key={m} value={m}>
+                          {m}
+                        </option>
+                      ))}
+                      <option value="__custom__">Custom model id…</option>
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      data-testid="external-model-custom"
+                      value={aiConnection.externalModel}
+                      placeholder={externalPreset.defaultModel}
+                      onChange={(e) => setAiConnection({ ...aiConnection, externalModel: e.target.value })}
+                      disabled={role !== "admin"}
+                    />
+                  )}
+                  {customModelDraft && role === "admin" ? (
+                    <button
+                      type="button"
+                      className="linkish"
+                      onClick={() => {
+                        setCustomModelDraft(false);
+                        setAiConnection({
+                          ...aiConnection,
+                          externalModel: externalPreset.defaultModel,
+                        });
+                      }}
+                    >
+                      Back to model list
+                    </button>
+                  ) : null}
                 </label>
                 <label>
                   API key {aiConnection.apiKeyConfigured ? `(saved ${aiConnection.apiKeyHint})` : "(not set)"}
                   <input
                     type="password"
                     autoComplete="off"
+                    data-testid="external-api-key"
                     value={apiKeyDraft}
-                    placeholder={aiConnection.apiKeyConfigured ? "Leave blank to keep existing key" : "sk-…"}
+                    placeholder={aiConnection.apiKeyConfigured ? "Leave blank to keep existing key" : "Paste API key"}
                     onChange={(e) => setApiKeyDraft(e.target.value)}
                     disabled={role !== "admin" || clearApiKey}
                   />
@@ -468,6 +554,37 @@ export function AdminPage() {
                   Clear saved API key
                 </label>
               </div>
+
+              <details
+                className="ai-advanced-details"
+                open={showExternalAdvanced}
+                onToggle={(e) => setShowExternalAdvanced((e.target as HTMLDetailsElement).open)}
+              >
+                <summary>Advanced URL override</summary>
+                <p className="muted">
+                  Presets fill a sensible endpoint. Override only for Azure deployments or custom gateways.
+                </p>
+                <label>
+                  External base URL
+                  <input
+                    type="url"
+                    data-testid="external-base-url"
+                    value={aiConnection.externalBaseUrl}
+                    placeholder={
+                      externalPreset.baseUrlPlaceholder ||
+                      aiConnection.defaults?.externalBaseUrl ||
+                      "https://api.example.com/v1/chat/completions"
+                    }
+                    onChange={(e) => {
+                      const url = e.target.value;
+                      setAiConnection({ ...aiConnection, externalBaseUrl: url });
+                      setExternalPresetId(matchPresetFromBaseUrl(url));
+                    }}
+                    disabled={role !== "admin"}
+                  />
+                </label>
+              </details>
+
               {role === "admin" && (
                 <button type="button" onClick={() => void saveAiConnection()}>
                   Save AI connection

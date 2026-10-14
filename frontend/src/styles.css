@@ -882,6 +882,114 @@ textarea {
   font-size: 1.15rem;
 }
 
+.ai-connection-subhead {
+  margin: 1.1rem 0 0.55rem;
+  font-family: var(--cr-font-ui, "Literata", Georgia, serif);
+  font-size: 0.95rem;
+  font-weight: 650;
+  color: var(--text);
+}
+
+.ai-external-grid .field-hint {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.78rem;
+}
+
+.ai-advanced-details {
+  margin: 0.85rem 0 1rem;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.ai-advanced-details summary {
+  cursor: pointer;
+  font-family: var(--cr-font-ui, "Literata", Georgia, serif);
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.ai-advanced-details label {
+  display: block;
+  margin-top: 0.65rem;
+}
+
+.ai-status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.28rem 0.65rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.92);
+  text-decoration: none;
+  color: var(--text);
+  font-family: var(--cr-font-ui, "Literata", Georgia, serif);
+  font-size: 0.78rem;
+  line-height: 1.2;
+  transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease;
+}
+
+.ai-status-chip:hover {
+  border-color: rgba(245, 158, 11, 0.45);
+  background: rgba(255, 251, 235, 0.95);
+  transform: translateY(-1px);
+}
+
+.ai-status-chip--on {
+  border-color: rgba(34, 197, 94, 0.35);
+  background: rgba(240, 253, 244, 0.95);
+}
+
+.ai-status-chip--warn {
+  border-color: rgba(245, 158, 11, 0.4);
+  background: rgba(255, 251, 235, 0.95);
+}
+
+.ai-status-chip-label {
+  font-weight: 650;
+}
+
+.ai-status-chip-meta {
+  font-size: 0.72rem;
+}
+
+.ai-status-panel {
+  margin-top: 0.35rem;
+}
+
+.ai-status-inline {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+  margin: 0.65rem 0 0.25rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.7);
+  font-family: var(--cr-font-ui, "Literata", Georgia, serif);
+  font-size: 0.9rem;
+  animation: fade-down 0.45s ease both;
+}
+
+.ai-status-inline--on {
+  border-color: rgba(34, 197, 94, 0.28);
+  background: rgba(240, 253, 244, 0.7);
+}
+
+.ai-status-inline--warn {
+  border-color: rgba(245, 158, 11, 0.35);
+  background: rgba(255, 251, 235, 0.75);
+}
+
+.button.compact {
+  padding: 0.28rem 0.65rem;
+  font-size: 0.8rem;
+}
+
 .admin-grid {
   display: flex;
   flex-wrap: wrap;

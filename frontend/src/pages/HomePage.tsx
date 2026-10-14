@@ -1,5 +1,7 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { AiStatusChrome } from "../ai/AiStatusChrome";
+import { useWorkspaceAiStatus } from "../ai/useWorkspaceAiStatus";
 import { apiFetch, formatApiError } from "../api/client";
 import { fetchRecentDocuments, type RecentDocMeta } from "../api/recentDocuments";
 import { useAuth } from "../auth/AuthProvider";
@@ -29,6 +31,7 @@ type Capabilities = {
 export function HomePage() {
   const branding = useBranding();
   const auth = useAuth();
+  const aiStatus = useWorkspaceAiStatus();
   const navigate = useNavigate();
   const [tab, setTab] = useState<"paste" | "upload" | "url">("paste");
   const [title, setTitle] = useState("");
@@ -250,6 +253,18 @@ export function HomePage() {
           <dt>Reader</dt>
           <dd>Day · Sepia · Night</dd>
         </div>
+        <div>
+          <dt>AI</dt>
+          <dd>
+            {aiStatus.loading
+              ? "…"
+              : aiStatus.aiEnabled
+                ? aiStatus.connected
+                  ? "Enabled"
+                  : "On · setup"
+                : "Off"}
+          </dd>
+        </div>
       </dl>
 
       <div className="status-bar" role="status">
@@ -263,6 +278,8 @@ export function HomePage() {
         </span>
         <span className="muted">Theme chrome from Rebeautifier · reader modes unchanged</span>
       </div>
+
+      {signedIn && aiStatus.aiEnabled ? <AiStatusChrome status={aiStatus} variant="home" /> : null}
 
       <div className="workspace-grid">
         <section className="panel">

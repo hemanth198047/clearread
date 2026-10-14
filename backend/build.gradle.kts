@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "com.clearread"
-version = "1.2.6"
+version = "1.2.10"
 
 java {
     toolchain {
