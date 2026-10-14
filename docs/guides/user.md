@@ -1,4 +1,4 @@
-# User guide (ClearRead v1.0)
+# User guide (ClearRead v1.2)
 
 ClearRead turns Markdown and other text-based files into a calm, structured reading experience while preserving the original bytes.
 
@@ -45,6 +45,18 @@ Production / enterprise: access is via your organization IdP (OIDC SSO or invite
 ## Library & search
 
 - **Library** lists workspace documents; search deep-links into reader find via `?q=`.
+- The **left file menu** lists readable files from preferred local folders (see below). Opening a file uploads it through the normal ingest pipeline (soft-dedup applies).
+
+## Preferred local folders (v1.2.0)
+
+Browse folders on your machine without auto-uploading everything:
+
+1. **Settings** → enable **Local folder library** → **Add folder…** (Chrome/Edge recommended).
+2. ClearRead scans for capability-supported text formats under **10 MiB** and lists them (nothing is uploaded yet).
+3. Open **Library** → choose a file in the left menu → it opens in the reader when processing finishes.
+4. Use **Re-scan** to refresh; inaccessible folders show an error. Safari/Firefox may require re-adding the folder after reload.
+
+Details and browser limits: [folder-scan-library.md](../folder-scan-library.md).
 
 ## Share
 

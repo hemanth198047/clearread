@@ -2,6 +2,8 @@ import { FormEvent, useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { apiFetch, formatApiError } from "../api/client";
 import { useAuth } from "../auth/AuthProvider";
+import { LocalFileNav } from "../library/LocalFileNav";
+import { useLocalLibrary } from "../library/useLocalLibrary";
 
 type Doc = {
   id: string;
@@ -50,6 +52,7 @@ export function LibraryPage() {
   const [searchHits, setSearchHits] = useState<{ documentId: string; title: string; snippetHtml: string }[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const localLib = useLocalLibrary(Boolean(auth.user || auth.devBypass));
 
   async function load() {
     if (!token) return;
@@ -138,122 +141,142 @@ export function LibraryPage() {
   }
 
   return (
-    <section className="panel">
-      <div className="page-header" style={{ border: 0, padding: 0, margin: 0 }}>
-        <div>
-          <p className="page-eyebrow">Workspace</p>
-          <h1>Library</h1>
-          <p className="lede">Workspace documents with status filters, favorites, and full-text search. Reopen any item after closing the reader.</p>
+    <div className="library-layout">
+      <LocalFileNav
+        folders={localLib.folders}
+        files={localLib.files}
+        enabled={localLib.enabled}
+        scanning={localLib.scanning}
+        lastScanAt={localLib.lastScanAt}
+        error={localLib.error}
+        onRescan={() => void localLib.rescan()}
+      />
+
+      <section className="panel library-main">
+        <div className="page-header" style={{ border: 0, padding: 0, margin: 0 }}>
+          <div>
+            <p className="page-eyebrow">Workspace</p>
+            <h1>Library</h1>
+            <p className="lede">
+              Workspace documents with status filters, favorites, and full-text search. Open a local file from the left
+              menu to ingest it into the reader.
+            </p>
+          </div>
+          <div className="page-header-actions">
+            <Link className="button secondary" to="/settings">
+              Settings
+            </Link>
+            <Link className="button secondary" to="/">
+              Ingest
+            </Link>
+            <button type="button" className="secondary" onClick={() => void load()} disabled={loading}>
+              {loading ? "Refreshing…" : "Refresh"}
+            </button>
+          </div>
         </div>
-        <div className="page-header-actions">
-          <Link className="button secondary" to="/">
-            Ingest
-          </Link>
-          <button type="button" className="secondary" onClick={() => void load()} disabled={loading}>
-            {loading ? "Refreshing…" : "Refresh"}
-          </button>
+
+        <div className="status-bar">
+          <span className={`status-dot${error ? " err" : loading ? " busy" : ""}`} />
+          <span>
+            {loading ? "Loading…" : `${docs.length} document${docs.length === 1 ? "" : "s"}`}
+            {status ? ` · status ${status}` : ""}
+            {favorite ? " · favorites" : ""}
+          </span>
+          <span className="muted">Sort: {sort}</span>
         </div>
-      </div>
 
-      <div className="status-bar">
-        <span className={`status-dot${error ? " err" : loading ? " busy" : ""}`} />
-        <span>
-          {loading ? "Loading…" : `${docs.length} document${docs.length === 1 ? "" : "s"}`}
-          {status ? ` · status ${status}` : ""}
-          {favorite ? " · favorites" : ""}
-        </span>
-        <span className="muted">Sort: {sort}</span>
-      </div>
+        <form onSubmit={onSearch} className="library-search">
+          <label>
+            Search
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Workspace full-text search" />
+          </label>
+          <button type="submit">Search</button>
+        </form>
 
-      <form onSubmit={onSearch} className="library-search">
-        <label>
-          Search
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Workspace full-text search" />
-        </label>
-        <button type="submit">Search</button>
-      </form>
-
-      {searchHits.length > 0 && (
-        <div className="search-results">
-          <h2>Search results</h2>
-          <ul className="library-list">
-            {searchHits.map((h) => (
-              <li key={h.documentId}>
-                <div className="library-item-main">
-                  <Link to={`/documents/${h.documentId}?q=${encodeURIComponent(q.trim())}`}>
-                    {decodeBasicEntities(h.title.replace(/<[^>]+>/g, ""))}
-                  </Link>
-                  <div className="muted library-desc">
-                    <SnippetText html={h.snippetHtml} />
+        {searchHits.length > 0 && (
+          <div className="search-results">
+            <h2>Search results</h2>
+            <ul className="library-list">
+              {searchHits.map((h) => (
+                <li key={h.documentId}>
+                  <div className="library-item-main">
+                    <Link to={`/documents/${h.documentId}?q=${encodeURIComponent(q.trim())}`}>
+                      {decodeBasicEntities(h.title.replace(/<[^>]+>/g, ""))}
+                    </Link>
+                    <div className="muted library-desc">
+                      <SnippetText html={h.snippetHtml} />
+                    </div>
                   </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        <div className="library-filters">
+          <label>
+            Status
+            <select value={status} onChange={(e) => setStatus(e.target.value)}>
+              <option value="">Any</option>
+              <option value="ready">Ready</option>
+              <option value="processing">Processing</option>
+              <option value="queued">Queued</option>
+              <option value="fetching">Fetching</option>
+              <option value="failed">Failed</option>
+            </select>
+          </label>
+          <label>
+            Sort
+            <select value={sort} onChange={(e) => setSort(e.target.value)}>
+              <option value="updated">Updated</option>
+              <option value="title">Title</option>
+              <option value="created">Created</option>
+              <option value="opened">Recently opened</option>
+            </select>
+          </label>
+          <label className="check">
+            <input type="checkbox" checked={favorite} onChange={(e) => setFavorite(e.target.checked)} /> Favorites
+          </label>
+        </div>
+
+        {error && (
+          <p className="alert" role="alert">
+            {error}
+          </p>
+        )}
+
+        {!error && docs.length === 0 && !loading ? (
+          <div className="library-empty">
+            <p>No documents match these filters.</p>
+            <p className="muted">Paste, upload, or open a local file from the left menu to start reading.</p>
+            <p>
+              <Link to="/">Go to ingest</Link>
+              {" · "}
+              <Link to="/settings">Configure folders</Link>
+            </p>
+          </div>
+        ) : (
+          <ul className="library-list">
+            {docs.map((d) => (
+              <li key={d.id}>
+                <div className="library-item-main">
+                  <Link to={`/documents/${d.id}`}>{d.title}</Link>
+                  <div className="library-meta muted">
+                    <span className="format-chip">{d.formatId}</span>
+                    <span>{d.status}</span>
+                    {d.updatedAt ? <span>{formatUpdated(d.updatedAt)}</span> : null}
+                  </div>
+                  {d.description ? <div className="muted library-desc">{d.description}</div> : null}
                 </div>
+                <button type="button" className="secondary" onClick={() => void toggleFavorite(d.id, d.favorite)}>
+                  {d.favorite ? "★ Favorited" : "☆ Favorite"}
+                </button>
               </li>
             ))}
           </ul>
-        </div>
-      )}
-
-      <div className="library-filters">
-        <label>
-          Status
-          <select value={status} onChange={(e) => setStatus(e.target.value)}>
-            <option value="">Any</option>
-            <option value="ready">Ready</option>
-            <option value="processing">Processing</option>
-            <option value="queued">Queued</option>
-            <option value="fetching">Fetching</option>
-            <option value="failed">Failed</option>
-          </select>
-        </label>
-        <label>
-          Sort
-          <select value={sort} onChange={(e) => setSort(e.target.value)}>
-            <option value="updated">Updated</option>
-            <option value="title">Title</option>
-            <option value="created">Created</option>
-            <option value="opened">Recently opened</option>
-          </select>
-        </label>
-        <label className="check">
-          <input type="checkbox" checked={favorite} onChange={(e) => setFavorite(e.target.checked)} /> Favorites
-        </label>
-      </div>
-
-      {error && (
-        <p className="alert" role="alert">
-          {error}
-        </p>
-      )}
-
-      {!error && docs.length === 0 && !loading ? (
-        <div className="library-empty">
-          <p>No documents match these filters.</p>
-          <p className="muted">Paste, upload, or fetch a file from Ingest to start reading.</p>
-          <p>
-            <Link to="/">Go to ingest</Link>
-          </p>
-        </div>
-      ) : (
-        <ul className="library-list">
-          {docs.map((d) => (
-            <li key={d.id}>
-              <div className="library-item-main">
-                <Link to={`/documents/${d.id}`}>{d.title}</Link>
-                <div className="library-meta muted">
-                  <span className="format-chip">{d.formatId}</span>
-                  <span>{d.status}</span>
-                  {d.updatedAt ? <span>{formatUpdated(d.updatedAt)}</span> : null}
-                </div>
-                {d.description ? <div className="muted library-desc">{d.description}</div> : null}
-              </div>
-              <button type="button" className="secondary" onClick={() => void toggleFavorite(d.id, d.favorite)}>
-                {d.favorite ? "★ Favorited" : "☆ Favorite"}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
+        )}
+      </section>
+    </div>
   );
 }
 
