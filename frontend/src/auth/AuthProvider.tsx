@@ -151,17 +151,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return user.access_token ?? null;
   }, [user]);
 
-  const value: AuthState = {
-    user,
-    loading,
-    authError,
-    login,
-    register,
-    logout,
-    retryAuth,
-    getAccessToken,
-    devBypass,
-  };
+  const value = useMemo<AuthState>(
+    () => ({
+      user,
+      loading,
+      authError,
+      login,
+      register,
+      logout,
+      retryAuth,
+      getAccessToken,
+      devBypass,
+    }),
+    [user, loading, authError, login, register, logout, retryAuth, getAccessToken]
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

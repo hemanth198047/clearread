@@ -411,7 +411,9 @@ export function ClearDocView({
   const hitCounter = { n: 0 };
   const segmentation = normalizeSegmentationMode(prefs.segmentation);
   const showInferred = segmentation === "detailed";
-  const sourceBody = coerceBody(doc);
+  // Memoize coerced body — coerceBody returns a new array each call; unstable refs re-ran
+  // collapse/reveal effects and could blank Detailed on prefs hydrate re-renders.
+  const sourceBody = useMemo(() => coerceBody(doc), [doc]);
 
   const body = useMemo(() => {
     const segmented = segmentBody(doc, segmentation);
@@ -428,11 +430,11 @@ export function ClearDocView({
     setCollapsed(new Set());
     // Detailed: reveal the whole body immediately so progressive chunking cannot look blank.
     if (segmentation === "detailed") {
-      setVisibleCount(Math.max(sourceBody.length, 1));
+      setVisibleCount(Math.max(sourceBody.length, CHUNK, 1));
     } else {
       setVisibleCount(sourceBody.length === 0 ? 0 : Math.min(Math.max(sourceBody.length, 1), CHUNK));
     }
-  }, [doc, segmentation, sourceBody.length]);
+  }, [doc, segmentation, sourceBody]);
 
   const displayBody =
     body.length === 0 && sourceBody.length > 0

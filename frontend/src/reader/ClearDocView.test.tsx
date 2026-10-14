@@ -126,4 +126,35 @@ describe("ClearDocView", () => {
     expect(screen.getByText("Wrapped detailed body")).toBeTruthy();
     expect(screen.queryByText(/No blocks to display/i)).toBeNull();
   });
+
+  it("Detailed stays visible across prefs object identity changes (hydrate re-renders)", () => {
+    const doc = {
+      metadata: { title: "Hydrate race" },
+      outline: [],
+      warnings: [],
+      body: [
+        {
+          type: "paragraph",
+          nodeId: "p1",
+          children: [{ type: "text", value: "Survives prefs re-render" }],
+        },
+      ],
+    };
+    const { rerender } = render(
+      <ClearDocView prefs={{ ...DEFAULT_PREFERENCES, segmentation: "detailed" }} doc={doc} />
+    );
+    expect(screen.getByText("Survives prefs re-render")).toBeTruthy();
+
+    // Simulate provider hydrate: new prefs object, same segmentation value.
+    for (let i = 0; i < 15; i++) {
+      rerender(
+        <ClearDocView
+          prefs={{ ...DEFAULT_PREFERENCES, segmentation: "detailed", fontSizePx: 18 + (i % 2) }}
+          doc={doc}
+        />
+      );
+    }
+    expect(screen.getByText("Survives prefs re-render")).toBeTruthy();
+    expect(screen.queryByText(/No blocks to display/i)).toBeNull();
+  });
 });
