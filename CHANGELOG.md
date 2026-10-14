@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.5] — 2026-10-14
+
+### Fixed
+
+- **reader-preferences fetch flood:** `useEffectEvent` identities change every render; listing `syncFromServer` / `persistRemote` (and the whole `auth` object) in effect/`useCallback` deps caused hundreds of identical GET/PUT `/v1/me/reader-preferences` calls on reader refresh. Load remote prefs **once per signed-in session**; save only on real user changes with debounce; skip no-op setState/PUT via `preferencesEqual`.
+- **Detailed first-load + prefs hydrate:** Do not clobber a user Structure → Detailed selection with a late server hydrate; memoize coerced ClearDoc body so prefs re-renders cannot blank Detailed.
+
+### Tests
+
+- Regression: `ReaderPreferencesProvider` does not re-fire GET endlessly; debounced PUT only after user edits; late hydrate cannot overwrite Detailed.
+
 ## [1.2.4] — 2026-10-14
 
 ### Fixed

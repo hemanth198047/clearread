@@ -73,6 +73,25 @@ export function mergePreferences(partial: Partial<ReaderPreferences> | null | un
   return merged;
 }
 
+/** Structural equality for preference objects (avoids setState / PUT no-ops). */
+export function preferencesEqual(a: ReaderPreferences, b: ReaderPreferences): boolean {
+  return (
+    a.theme === b.theme &&
+    a.fontFamily === b.fontFamily &&
+    a.fontSizePx === b.fontSizePx &&
+    a.lineHeight === b.lineHeight &&
+    a.measureCh === b.measureCh &&
+    a.paragraphSpacingEm === b.paragraphSpacingEm &&
+    a.headingSpacingEm === b.headingSpacingEm &&
+    a.codeFontSizePx === b.codeFontSizePx &&
+    a.showLineNumbers === b.showLineNumbers &&
+    a.sectionCollapsing === b.sectionCollapsing &&
+    a.segmentation === b.segmentation &&
+    a.tocOpen === b.tocOpen &&
+    a.viewMode === b.viewMode
+  );
+}
+
 export function loadLocalPreferences(): ReaderPreferences {
   try {
     const raw = localStorage.getItem(LOCAL_PREFS_KEY);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mergePreferences, normalizeSegmentationMode } from "./preferences";
+import { mergePreferences, normalizeSegmentationMode, preferencesEqual, DEFAULT_PREFERENCES } from "./preferences";
 
 describe("normalizeSegmentationMode", () => {
   it("accepts canonical keys", () => {
@@ -17,5 +17,12 @@ describe("normalizeSegmentationMode", () => {
 
   it("mergePreferences coerces segmentation", () => {
     expect(mergePreferences({ segmentation: "Detailed" as "detailed" }).segmentation).toBe("detailed");
+  });
+
+  it("preferencesEqual is true for identical values and false when segmentation differs", () => {
+    const a = mergePreferences({ segmentation: "detailed" });
+    const b = mergePreferences({ segmentation: "Detailed" as "detailed" });
+    expect(preferencesEqual(a, b)).toBe(true);
+    expect(preferencesEqual(a, DEFAULT_PREFERENCES)).toBe(false);
   });
 });
