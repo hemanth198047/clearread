@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { Link, NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { AiStatusChrome } from "./ai/AiStatusChrome";
+import { useWorkspaceAiStatus } from "./ai/useWorkspaceAiStatus";
 import { useAuth } from "./auth/AuthProvider";
 import { useBranding } from "./branding/BrandingProvider";
 import { LocalLibraryProvider } from "./library/LocalLibraryProvider";
@@ -16,6 +18,7 @@ import { ReaderPreferencesProvider } from "./reader/ReaderPreferencesProvider";
 export function App() {
   const branding = useBranding();
   const auth = useAuth();
+  const aiStatus = useWorkspaceAiStatus();
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
   const inReader = location.pathname.startsWith("/documents/");
@@ -90,6 +93,7 @@ export function App() {
             </div>
             <div className="topbar-actions">
               <span className="topbar-crumb muted">{crumb}</span>
+              <AiStatusChrome status={aiStatus} variant="topbar" />
               {auth.loading ? (
                 <span className="muted">Checking session…</span>
               ) : auth.user || auth.devBypass ? (
@@ -168,6 +172,14 @@ export function App() {
                 <span className="meta-label">API</span>
                 <span className="meta-value mono">same-origin /v1</span>
               </div>
+              {aiStatus.aiEnabled ? (
+                <div className="meta-row">
+                  <span className="meta-label">AI</span>
+                  <span className="meta-value">
+                    {aiStatus.connected ? "Enabled" : "On · provider missing"} · {aiStatus.providerLabel}
+                  </span>
+                </div>
+              ) : null}
             </div>
           </aside>
         )}
