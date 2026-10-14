@@ -3,13 +3,19 @@
 **ClearRead v1.1.3** (temporary product name; branding is configurable).  
 Turns Markdown and plain text into structured, accessible reading experiences — **preserves originals**, **no AI required** for the core path, and **honest format support** via a capability registry.
 
-**Repository:** target name [`hemanth198047/clearread`](https://github.com/hemanth198047/clearread) (rename from `mdbeautifier` in GitHub → Settings → General → Repository name if not done yet). After rename, clone with:
+**Repository:** [`hemanth198047/clearread`](https://github.com/hemanth198047/clearread) (rename from `mdbeautifier` still **waiting on the repo owner** — agents get `403` on rename). Owner steps + `git remote set-url`: [docs/ops/repo-rename.md](docs/ops/repo-rename.md). Clone with:
 
 ```bash
 git clone https://github.com/hemanth198047/clearread.git
 ```
 
-GitHub redirects the old URL; prefer the new name in docs and remotes (`git remote set-url origin https://github.com/hemanth198047/clearread.git`).
+After the GitHub rename, update an existing checkout:
+
+```bash
+git remote set-url origin https://github.com/hemanth198047/clearread.git
+```
+
+GitHub redirects the old URL; Java packages stay `com.clearread`.
 
 ## Prerequisites
 

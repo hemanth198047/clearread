@@ -1,5 +1,7 @@
 # Deployment guide (ClearRead v1.0)
 
+**Source repo (target):** https://github.com/hemanth198047/clearread — owner rename from `mdbeautifier` + remote update: [ops/repo-rename.md](../ops/repo-rename.md).
+
 ## Local Compose (recommended starting point)
 
 ```bash
