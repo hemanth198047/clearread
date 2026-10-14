@@ -81,4 +81,29 @@ describe("segmentation", () => {
     expect(coerceBody(broken)).toEqual([]);
     expect(segmentBody(broken, "detailed")).toEqual([]);
   });
+
+  it("coerceBody unwraps blocks/nodes wrappers and stringified JSON", () => {
+    const wrapped = { ...doc, body: { blocks: doc.body } as unknown as ClearDoc["body"] };
+    expect(coerceBody(wrapped)).toHaveLength(doc.body.length);
+    expect(segmentBody(wrapped, "detailed")).toHaveLength(doc.body.length);
+
+    const asJson = { ...doc, body: JSON.stringify(doc.body) as unknown as ClearDoc["body"] };
+    expect(coerceBody(asJson)).toHaveLength(doc.body.length);
+    expect(segmentBody(asJson, "detailed").length).toBeGreaterThan(0);
+  });
+
+  it("normalizes mis-cased block types so Detailed still renders", () => {
+    const cased: ClearDoc = {
+      ...doc,
+      body: [
+        { type: "Heading", level: 1, nodeId: "h1", children: [{ type: "text", value: "Title" }] },
+        { type: "Paragraph", nodeId: "p1", children: [{ type: "text", value: "Body" }] },
+      ],
+    };
+    const out = segmentBody(cased, "detailed");
+    expect(out).toHaveLength(2);
+    expect(out[0].type).toBe("heading");
+    expect(out[1].type).toBe("paragraph");
+    expect(segmentBody(cased, "conservative")).toHaveLength(2);
+  });
 });

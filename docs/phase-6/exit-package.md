@@ -6,7 +6,7 @@
 ## 1. What works
 
 - Security headers (`X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`, COOP/CORP, HSTS when HTTPS)
-- Coarse per-IP API rate limit (`clearread.limits.api-requests-per-minute`, default 600)
+- Coarse per-IP API rate limit (`clearread.limits.api-requests-per-minute`, local default 0 / prod 600; public edges `public-api-requests-per-minute` default 120)
 - Actuator metrics + Prometheus registry (`/actuator/prometheus`, authenticated)
 - Backup / restore scripts (`scripts/backup.sh`, `scripts/restore.sh`) + operator runbook
 - Compose image pins documented; Keycloak/Postgres/LocalStack versions fixed in compose

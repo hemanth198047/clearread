@@ -102,4 +102,28 @@ describe("ClearDocView", () => {
     );
     expect(screen.getByRole("status").textContent).toMatch(/No blocks to display/i);
   });
+
+  it("Detailed renders wrapped body payloads and mis-cased block types", () => {
+    render(
+      <ClearDocView
+        prefs={{ ...DEFAULT_PREFERENCES, segmentation: "detailed" }}
+        doc={{
+          metadata: { title: "Wrapped" },
+          outline: [],
+          warnings: [],
+          body: {
+            blocks: [
+              {
+                type: "Paragraph",
+                nodeId: "p1",
+                children: [{ type: "text", value: "Wrapped detailed body" }],
+              },
+            ],
+          } as unknown as typeof proseDoc.body,
+        }}
+      />
+    );
+    expect(screen.getByText("Wrapped detailed body")).toBeTruthy();
+    expect(screen.queryByText(/No blocks to display/i)).toBeNull();
+  });
 });

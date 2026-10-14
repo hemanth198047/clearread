@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode, type RefObject } from "react";
 import type { ReaderPreferences } from "./preferences";
 import { normalizeSegmentationMode } from "./preferences";
-import { coerceBody, segmentBody } from "./segmentation";
+import { coerceBody, normalizeBlockType, segmentBody } from "./segmentation";
 
 function safeHref(href: unknown): string {
   const raw = String(href ?? "#");
@@ -129,7 +129,7 @@ function Block({
   onToggleCollapse: (id: string) => void;
   showInferred: boolean;
 }) {
-  const type = String(node.type);
+  const type = normalizeBlockType(node.type) || String(node.type ?? "");
   const id = node.nodeId ? String(node.nodeId) : undefined;
   const provenance = node.provenance as { kind?: string } | undefined;
   const inferred = provenance?.kind === "inferred";
@@ -370,7 +370,7 @@ function applyCollapse(body: Record<string, unknown>[], collapsed: Set<string>):
   const out: Record<string, unknown>[] = [];
   let hidingUntilLevel: number | null = null;
   for (const node of body) {
-    if (node.type === "heading") {
+    if (normalizeBlockType(node.type) === "heading") {
       const level = Number(node.level ?? 2);
       const id = node.nodeId ? String(node.nodeId) : "";
       if (hidingUntilLevel != null && level > hidingUntilLevel) {
@@ -386,6 +386,8 @@ function applyCollapse(body: Record<string, unknown>[], collapsed: Set<string>):
     if (hidingUntilLevel != null) continue;
     out.push(node);
   }
+  // Never collapse a non-empty body down to nothing (bad ids / odd heading levels).
+  if (out.length === 0 && body.length > 0) return body;
   return out;
 }
 
@@ -416,17 +418,32 @@ export function ClearDocView({
     // Belt-and-suspenders: never blank a non-empty ClearDoc (wrong mode key / filter / collapse).
     const safe =
       segmented.length === 0 && sourceBody.length > 0 ? sourceBody.slice() : segmented;
+    // Detailed: ignore collapse so Structure → Detailed always shows the full body.
+    if (segmentation === "detailed") return safe;
     return applyCollapse(safe, collapsed);
   }, [doc, segmentation, collapsed, sourceBody]);
 
   // Reset collapse + progressive reveal when doc or segmentation mode changes (Detailed must show content).
   useEffect(() => {
     setCollapsed(new Set());
-    setVisibleCount(sourceBody.length === 0 ? 0 : Math.min(Math.max(sourceBody.length, 1), CHUNK));
+    // Detailed: reveal the whole body immediately so progressive chunking cannot look blank.
+    if (segmentation === "detailed") {
+      setVisibleCount(Math.max(sourceBody.length, 1));
+    } else {
+      setVisibleCount(sourceBody.length === 0 ? 0 : Math.min(Math.max(sourceBody.length, 1), CHUNK));
+    }
   }, [doc, segmentation, sourceBody.length]);
 
-  const displayBody = body.length === 0 && sourceBody.length > 0 ? sourceBody : body;
-  const slice = displayBody.slice(0, Math.max(visibleCount, displayBody.length > 0 ? 1 : 0));
+  const displayBody =
+    body.length === 0 && sourceBody.length > 0
+      ? sourceBody
+      : segmentation === "detailed" && body.length < sourceBody.length && sourceBody.length > 0
+        ? sourceBody
+        : body;
+  const slice = displayBody.slice(
+    0,
+    Math.max(visibleCount, displayBody.length > 0 ? 1 : 0, segmentation === "detailed" ? displayBody.length : 0)
+  );
 
   const onToggleCollapse = (id: string) => {
     setCollapsed((prev) => {

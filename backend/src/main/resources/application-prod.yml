@@ -1,0 +1,10 @@
+# Production profile — tighter authenticated API rate limit while public edges stay capped.
+# Activate with SPRING_PROFILES_ACTIVE=prod (or include prod among active profiles).
+clearread:
+  branding:
+    show-demo-accounts: false
+  limits:
+    # Authenticated non-exempt traffic (mutations, etc.). Reads under /v1/documents|/v1/library|/v1/search
+    # with Bearer remain exempt in ApiRateLimitFilter regardless of this value.
+    api-requests-per-minute: ${CLEARREAD_API_RPM:600}
+    public-api-requests-per-minute: ${CLEARREAD_PUBLIC_API_RPM:120}

@@ -30,7 +30,7 @@
 
 ## Ops
 
-- Rate limiting per instance (`ApiRateLimitFilter`).
+- Rate limiting per instance (`ApiRateLimitFilter`): authenticated reads exempt; local Compose `CLEARREAD_API_RPM=0`; public edges use `CLEARREAD_PUBLIC_API_RPM` (default 120); prod profile defaults authenticated RPM to 600.
 - Prometheus authenticated; isolate at the network layer in production.
 - Backup both Postgres and object store ([backup-restore](./backup-restore.md)).
 

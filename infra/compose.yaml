@@ -132,6 +132,9 @@ services:
       CLEARREAD_CORS_ORIGINS: ${CLEARREAD_CORS_ORIGINS:-http://localhost:5173,http://localhost:3000}
       CLEARREAD_PRODUCT_NAME: ClearRead
       CLEARREAD_SHOW_DEMO_ACCOUNTS: ${CLEARREAD_SHOW_DEMO_ACCOUNTS:-true}
+      # Local/demo: unlimited authenticated API (0). Public edges still use CLEARREAD_PUBLIC_API_RPM.
+      CLEARREAD_API_RPM: ${CLEARREAD_API_RPM:-0}
+      CLEARREAD_PUBLIC_API_RPM: ${CLEARREAD_PUBLIC_API_RPM:-120}
       JAVA_TOOL_OPTIONS: "-Djava.net.useSystemProxies=false"
       NO_PROXY: "db,minio,keycloak,localhost,127.0.0.1"
       no_proxy: "db,minio,keycloak,localhost,127.0.0.1"

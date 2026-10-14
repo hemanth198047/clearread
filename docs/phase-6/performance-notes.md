@@ -8,7 +8,9 @@
 | URL fetch time | policy-bound | `SafeHttpFetcher` |
 | CSV rows shown in reader | 200 (UI) | `ClearDocView` |
 | Progressive body reveal | 80 blocks / chunk | `ClearDocView` |
-| API rate limit | 600 req/min/IP | `ApiRateLimitFilter` |
+| Authenticated API rate limit | 0 (unlimited) local; 600 prod | `CLEARREAD_API_RPM` / `ApiRateLimitFilter` |
+| Public (unauth) API rate limit | 120 req/min/IP | `CLEARREAD_PUBLIC_API_RPM` |
+| Authenticated read GETs | Exempt | Library / documents / search |
 
 ## Budgets (from Phase 0)
 

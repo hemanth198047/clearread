@@ -55,7 +55,11 @@ clearread:
     max-upload-bytes: ${CLEARREAD_MAX_UPLOAD_BYTES:10485760}
     max-nesting-depth: 64
     max-csv-rows: 50000
-    api-requests-per-minute: ${CLEARREAD_API_RPM:600}
+    # Authenticated mutations (and non-exempt traffic). 0 = unlimited — local/Compose default.
+    # Set CLEARREAD_API_RPM=600 (or use spring.profiles.active=prod) in production.
+    api-requests-per-minute: ${CLEARREAD_API_RPM:0}
+    # Unauthenticated public edges (preview / share / invites). Keep abuse protection on.
+    public-api-requests-per-minute: ${CLEARREAD_PUBLIC_API_RPM:120}
   fetch:
     allow-private-network: ${CLEARREAD_FETCH_ALLOW_PRIVATE:false}
     max-redirects: 3
