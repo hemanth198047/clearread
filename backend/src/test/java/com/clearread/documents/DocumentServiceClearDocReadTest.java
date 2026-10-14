@@ -32,12 +32,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * Covers the ManuAbhi failure mode: document is {@code ready} with revision metadata,
- * but the ClearDoc object is gone/corrupt from object storage (opaque 500 → precise status).
+ * Covers ClearDoc read failures and missing-original purge (v1.2.8 — no replace-original UX).
  */
 @ExtendWith(MockitoExtension.class)
 class DocumentServiceClearDocReadTest {
@@ -80,6 +80,7 @@ class DocumentServiceClearDocReadTest {
     @Test
     void getCleardoc_returns404_whenArtifactMissingFromStorage() {
         stubReadyDoc();
+        when(storage.exists(any())).thenReturn(true);
         when(storage.getBytes(any())).thenThrow(
                 software.amazon.awssdk.services.s3.model.NoSuchKeyException.builder()
                         .message("The specified key does not exist.")
@@ -99,6 +100,7 @@ class DocumentServiceClearDocReadTest {
     @Test
     void getCleardoc_returnsDoc_whenArtifactPresent() throws Exception {
         stubReadyDoc();
+        when(storage.exists(any())).thenReturn(true);
         ClearDoc doc = new ClearDoc(
                 "1.0", documentId.toString(), revisionId.toString(), tenantId.toString(),
                 new Source("markdown", "a", "1", "sha", "f.md", 3),
@@ -111,7 +113,31 @@ class DocumentServiceClearDocReadTest {
     }
 
     @Test
-    void reprocess_rejectsWhenOriginalObjectMissing() {
+    void getMeta_purgesAndReturns410_whenOriginalMissing() {
+        DocumentRecord doc = new DocumentRecord(
+                documentId, tenantId, "T", "markdown", "ready",
+                "tenants/t/documents/d/original/sha", "sha", 10L, "f.md", userId, revisionId
+        );
+        when(documents.findByTenantAndId(any(), eq(documentId))).thenReturn(Optional.of(doc));
+        when(documents.canRead(any(), eq(documentId), eq(userId), any())).thenReturn(true);
+        when(storage.exists(doc.originalObjectKey())).thenReturn(false);
+
+        assertThatThrownBy(() -> service.getMeta(user, documentId))
+                .isInstanceOf(ResponseStatusException.class)
+                .satisfies(ex -> {
+                    ResponseStatusException rse = (ResponseStatusException) ex;
+                    assertThat(rse.getStatusCode()).isEqualTo(HttpStatus.GONE);
+                    assertThat(rse.getReason()).containsIgnoringCase("Document removed");
+                    assertThat(rse.getReason()).doesNotContain("replace-original");
+                    assertThat(rse.getReason()).doesNotContainIgnoringCase("re-upload");
+                });
+        verify(documents).softDelete(tenantId, documentId);
+        verify(audit).record(eq(userId), eq("document.purge_missing_original"), eq("document"),
+                eq(documentId.toString()), any());
+    }
+
+    @Test
+    void reprocess_purgesWhenOriginalObjectMissing() {
         DocumentRecord doc = new DocumentRecord(
                 documentId, tenantId, "T", "markdown", "ready",
                 "tenants/t/documents/d/original/sha", "sha", 10L, "f.md", userId, revisionId
@@ -124,10 +150,11 @@ class DocumentServiceClearDocReadTest {
                 .isInstanceOf(ResponseStatusException.class)
                 .satisfies(ex -> {
                     ResponseStatusException rse = (ResponseStatusException) ex;
-                    assertThat(rse.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
-                    assertThat(rse.getReason()).containsIgnoringCase("Original object missing");
-                    assertThat(rse.getReason()).contains("replace-original");
+                    assertThat(rse.getStatusCode()).isEqualTo(HttpStatus.GONE);
+                    assertThat(rse.getReason()).containsIgnoringCase("Document removed");
                 });
+        verify(documents).softDelete(tenantId, documentId);
+        verify(jobs, never()).enqueue(any(), any(), any(), any(), any());
     }
 
     @Test
@@ -147,49 +174,14 @@ class DocumentServiceClearDocReadTest {
     }
 
     @Test
-    void replaceOriginal_restoresBytesAndEnqueuesTransform() throws Exception {
-        DocumentRecord doc = new DocumentRecord(
-                documentId, tenantId, "T", "markdown", "ready",
-                "tenants/t/documents/d/original/old", "oldsha", 3L, "f.md", userId, revisionId
-        );
-        when(documents.findByTenantAndId(any(), eq(documentId))).thenReturn(Optional.of(doc));
-        when(documents.canRead(any(), eq(documentId), eq(userId), any())).thenReturn(true);
-        when(properties.getLimits()).thenReturn(limits(1_000_000));
-        when(workspaceSettings.getOrDefaults(tenantId)).thenReturn(ws(1_000_000));
-        when(transformService.detectFormat(any(), any())).thenReturn("markdown");
-        when(capabilities.supportsIngest("markdown")).thenReturn(true);
-        String newSha = ObjectStorageService.sha256("# hi\n".getBytes());
-        String newKey = "tenants/" + tenantId + "/documents/" + documentId + "/original/" + newSha;
-        when(storage.originalKey(tenantId, documentId, newSha)).thenReturn(newKey);
-        when(storage.putBytes(eq(newKey), any(), any())).thenReturn(
-                new ObjectStorageService.StoredObject(newKey, newSha, 5)
-        );
-        when(storage.exists(any())).thenReturn(false);
-
-        byte[] bytes = "# hi\n".getBytes();
-        var result = service.replaceOriginal(user, documentId, "f.md", "text/markdown", bytes);
-
-        assertThat(result.get("replacedOriginal")).isEqualTo(true);
-        assertThat(result.get("jobId")).isNotNull();
-        assertThat(result.get("originalMissing")).isEqualTo(true);
-        verify(documents).attachOriginal(
-                eq(tenantId), eq(documentId), eq(newKey), eq(newSha), eq(5L), eq("f.md"), eq("markdown")
-        );
-        verify(documents).updateSourceFetched(
-                eq(tenantId), eq(documentId), eq(newKey), eq(newSha), eq(5L), any(), eq("f.md"), any()
-        );
-        verify(jobs).enqueue(any(), eq(tenantId), eq("transform.document"), any(), any());
-    }
-
-    @Test
-    void softDedup_restoresWhenOriginalMissingFromStorage() throws Exception {
+    void softDedup_purgesOrphanAndCreatesFreshWhenOriginalMissing() throws Exception {
         String content = "# Same\n";
         byte[] bytes = content.getBytes();
         String sha = ObjectStorageService.sha256(bytes);
-        String key = "tenants/" + tenantId + "/documents/" + documentId + "/original/" + sha;
+        String oldKey = "tenants/" + tenantId + "/documents/" + documentId + "/original/" + sha;
         DocumentRecord orphaned = new DocumentRecord(
                 documentId, tenantId, "T", "markdown", "ready",
-                key, sha, (long) bytes.length, "f.md", userId, revisionId
+                oldKey, sha, (long) bytes.length, "f.md", userId, revisionId
         );
         when(properties.getLimits()).thenReturn(limits(1_000_000));
         when(workspaceSettings.getOrDefaults(tenantId)).thenReturn(ws(1_000_000));
@@ -197,27 +189,63 @@ class DocumentServiceClearDocReadTest {
         when(capabilities.supportsIngest("markdown")).thenReturn(true);
         when(documents.findByTenantAndOriginalSha(tenantId, sha)).thenReturn(Optional.of(orphaned));
         when(documents.canRead(tenantId, documentId, userId, "author")).thenReturn(true);
-        when(storage.exists(key)).thenReturn(false);
-        when(storage.originalKey(tenantId, documentId, sha)).thenReturn(key);
-        when(storage.putBytes(eq(key), any(), any())).thenReturn(
-                new ObjectStorageService.StoredObject(key, sha, bytes.length)
+        when(storage.exists(oldKey)).thenReturn(false);
+
+        when(storage.originalKey(eq(tenantId), any(UUID.class), eq(sha))).thenAnswer(inv -> {
+            UUID id = inv.getArgument(1);
+            return "tenants/" + tenantId + "/documents/" + id + "/original/" + sha;
+        });
+        when(storage.putBytes(any(), any(), any())).thenAnswer(inv -> {
+            String key = inv.getArgument(0);
+            return new ObjectStorageService.StoredObject(key, sha, bytes.length);
+        });
+
+        DocumentService.IngestResult result = service.ingestUpload(
+                user, "T", "f.md", "text/markdown", bytes, false
         );
-        when(documents.findByTenantAndId(tenantId, documentId)).thenReturn(Optional.of(
-                new DocumentRecord(
-                        documentId, tenantId, "T", "markdown", "queued",
-                        key, sha, (long) bytes.length, "f.md", userId, revisionId
-                )
-        ));
+
+        assertThat(result.duplicateOfExisting()).isFalse();
+        assertThat(result.document().id()).isNotEqualTo(documentId);
+        verify(documents).softDelete(tenantId, documentId);
+        verify(documents).insert(any());
+        verify(jobs).enqueue(any(), eq(tenantId), eq("transform.document"), any(), any());
+    }
+
+    @Test
+    void softDedup_returnsExistingWhenOriginalPresent() throws Exception {
+        String content = "# Same\n";
+        byte[] bytes = content.getBytes();
+        String sha = ObjectStorageService.sha256(bytes);
+        String key = "tenants/" + tenantId + "/documents/" + documentId + "/original/" + sha;
+        DocumentRecord existing = new DocumentRecord(
+                documentId, tenantId, "T", "markdown", "ready",
+                key, sha, (long) bytes.length, "f.md", userId, revisionId
+        );
+        when(properties.getLimits()).thenReturn(limits(1_000_000));
+        when(workspaceSettings.getOrDefaults(tenantId)).thenReturn(ws(1_000_000));
+        when(transformService.detectFormat(any(), any())).thenReturn("markdown");
+        when(capabilities.supportsIngest("markdown")).thenReturn(true);
+        when(documents.findByTenantAndOriginalSha(tenantId, sha)).thenReturn(Optional.of(existing));
+        when(documents.canRead(tenantId, documentId, userId, "author")).thenReturn(true);
+        when(storage.exists(key)).thenReturn(true);
 
         DocumentService.IngestResult result = service.ingestUpload(
                 user, "T", "f.md", "text/markdown", bytes, false
         );
 
         assertThat(result.duplicateOfExisting()).isTrue();
-        assertThat(result.restoredStorage()).isTrue();
         assertThat(result.document().id()).isEqualTo(documentId);
-        verify(storage).putBytes(eq(key), eq(bytes), any());
-        verify(jobs).enqueue(any(), eq(tenantId), eq("transform.document"), any(), any());
+        verify(documents, never()).softDelete(any(), any());
+        verify(documents, never()).insert(any());
+    }
+
+    @Test
+    void shouldPurge_skipsInFlightUrlFetchWithoutOriginalKey() {
+        DocumentRecord fetching = new DocumentRecord(
+                documentId, tenantId, "Remote", "unknown", "queued",
+                null, null, null, null, userId, null
+        );
+        assertThat(service.shouldPurgeForMissingOriginal(fetching)).isFalse();
     }
 
     private static ClearReadProperties.Limits limits(long maxUpload) {

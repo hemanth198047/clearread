@@ -120,23 +120,34 @@ public class LibraryService {
 
         return rows.stream()
                 .filter(m -> documents.canRead(tenantId, UUID.fromString((String) m.get("id")), user.id(), TenantContext.roleOrNull()))
-                .map(m -> {
+                .filter(m -> {
                     String originalKey = (String) m.remove("_originalObjectKey");
-                    boolean originalMissing = isOriginalMissing(originalKey);
-                    m.put("originalMissing", originalMissing);
-                    if (originalMissing) {
-                        m.put("storageOrphaned", true);
-                        m.put("recovery", "replace-original");
+                    String docStatus = (String) m.get("status");
+                    boolean alreadyDeleted = Boolean.TRUE.equals(m.get("deleted"));
+                    if (!alreadyDeleted && shouldPurgeMissingOriginal(originalKey, docStatus)) {
+                        // Silent cleanup: drop orphaned library rows so the UI never shows re-upload recovery.
+                        documents.softDelete(tenantId, UUID.fromString((String) m.get("id")));
+                        return false;
                     }
-                    return m;
+                    m.put("originalMissing", false);
+                    return true;
                 })
                 .toList();
     }
 
-    private boolean isOriginalMissing(String originalKey) {
-        if (originalKey == null || originalKey.isBlank()) {
-            return true;
+    /**
+     * Purge when a stored original key is gone. Blank keys are only purged for terminal statuses
+     * (not mid-flight URL ingest).
+     */
+    private boolean shouldPurgeMissingOriginal(String originalKey, String status) {
+        if (originalKey != null && !originalKey.isBlank()) {
+            return isOriginalObjectGone(originalKey);
         }
+        String s = status == null ? "" : status;
+        return "ready".equals(s) || "failed".equals(s) || "cancelled".equals(s);
+    }
+
+    private boolean isOriginalObjectGone(String originalKey) {
         try {
             return !storage.exists(originalKey);
         } catch (RuntimeException e) {
