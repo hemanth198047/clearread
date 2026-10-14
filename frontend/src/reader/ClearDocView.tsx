@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode, type RefObject } from "react";
 import type { ReaderPreferences } from "./preferences";
-import { segmentBody } from "./segmentation";
+import { normalizeSegmentationMode } from "./preferences";
+import { coerceBody, segmentBody } from "./segmentation";
 
 function safeHref(href: unknown): string {
   const raw = String(href ?? "#");
@@ -406,19 +407,26 @@ export function ClearDocView({
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [visibleCount, setVisibleCount] = useState(CHUNK);
   const hitCounter = { n: 0 };
-  const showInferred = prefs.segmentation === "detailed";
+  const segmentation = normalizeSegmentationMode(prefs.segmentation);
+  const showInferred = segmentation === "detailed";
+  const sourceBody = coerceBody(doc);
 
   const body = useMemo(() => {
-    const segmented = segmentBody(doc, prefs.segmentation);
-    return applyCollapse(segmented, collapsed);
-  }, [doc, prefs.segmentation, collapsed]);
+    const segmented = segmentBody(doc, segmentation);
+    // Belt-and-suspenders: never blank a non-empty ClearDoc (wrong mode key / filter / collapse).
+    const safe =
+      segmented.length === 0 && sourceBody.length > 0 ? sourceBody.slice() : segmented;
+    return applyCollapse(safe, collapsed);
+  }, [doc, segmentation, collapsed, sourceBody]);
 
-  // Reset progressive reveal when doc or segmentation mode changes (Detailed must show content).
+  // Reset collapse + progressive reveal when doc or segmentation mode changes (Detailed must show content).
   useEffect(() => {
-    setVisibleCount(Math.max(CHUNK, Math.min(body.length, CHUNK)));
-  }, [doc, prefs.segmentation, body.length]);
+    setCollapsed(new Set());
+    setVisibleCount(sourceBody.length === 0 ? 0 : Math.min(Math.max(sourceBody.length, 1), CHUNK));
+  }, [doc, segmentation, sourceBody.length]);
 
-  const slice = body.slice(0, visibleCount);
+  const displayBody = body.length === 0 && sourceBody.length > 0 ? sourceBody : body;
+  const slice = displayBody.slice(0, Math.max(visibleCount, displayBody.length > 0 ? 1 : 0));
 
   const onToggleCollapse = (id: string) => {
     setCollapsed((prev) => {
@@ -434,18 +442,22 @@ export function ClearDocView({
     const el = scrollParentRef?.current;
     if (!el) return;
     const onScroll = () => {
-      if (el.scrollTop + el.clientHeight > el.scrollHeight - 400 && visibleCount < body.length) {
-        setVisibleCount((c) => Math.min(body.length, c + CHUNK));
+      if (el.scrollTop + el.clientHeight > el.scrollHeight - 400 && visibleCount < displayBody.length) {
+        setVisibleCount((c) => Math.min(displayBody.length, c + CHUNK));
       }
     };
     el.addEventListener("scroll", onScroll, { passive: true });
     return () => el.removeEventListener("scroll", onScroll);
-  }, [scrollParentRef, body.length, visibleCount]);
+  }, [scrollParentRef, displayBody.length, visibleCount]);
+
+  // Truly empty only when the source ClearDoc has no blocks (never for Detailed on non-empty docs).
+  const showEmpty = displayBody.length === 0 && sourceBody.length === 0;
 
   return (
     <article
       id="reader-article"
       className="reader-article"
+      data-segmentation={segmentation}
       aria-label={doc.metadata?.title ?? "Document"}
     >
       <h1>{doc.metadata?.title ?? "Document"}</h1>
@@ -464,10 +476,10 @@ export function ClearDocView({
           </ul>
         </aside>
       )}
-      {body.length === 0 ? (
+      {showEmpty ? (
         <p className="reader-empty" role="status">
           No blocks to display for this segmentation mode
-          {prefs.segmentation !== "detailed" ? " — try Balanced or Detailed" : ""}. The document body is empty after
+          {segmentation !== "detailed" ? " — try Balanced or Detailed" : ""}. The document body is empty after
           filtering, or the source had no structured content.
         </p>
       ) : (
@@ -485,10 +497,10 @@ export function ClearDocView({
           />
         ))
       )}
-      {visibleCount < body.length && (
+      {visibleCount < displayBody.length && (
         <p style={{ fontFamily: "var(--reader-font-ui)", color: "var(--reader-muted)" }}>
-          <button type="button" className="collapse-toggle" onClick={() => setVisibleCount(body.length)}>
-            Show remaining {body.length - visibleCount} blocks
+          <button type="button" className="collapse-toggle" onClick={() => setVisibleCount(displayBody.length)}>
+            Show remaining {displayBody.length - visibleCount} blocks
           </button>
         </p>
       )}

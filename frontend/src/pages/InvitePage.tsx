@@ -27,13 +27,14 @@ export function InvitePage() {
   }, [token]);
 
   return (
-    <section className="panel access-panel">
-      <div className="page-header" style={{ border: 0, padding: 0, margin: 0 }}>
-        <div>
-          <h1>Workspace invite</h1>
-          <p className="lede">Accept an invite by creating an account or signing in with the invited email.</p>
-        </div>
-      </div>
+    <section className="auth-stage">
+      <div className="auth-stage-panel access-panel">
+        <p className="page-eyebrow">Invite</p>
+        <h1 className="auth-stage-brand">
+          ClearRead<span>.</span>
+        </h1>
+        <h2>Workspace invite</h2>
+        <p className="lede">Accept an invite by creating an account or signing in with the invited email.</p>
       {error && (
         <p role="alert" className="alert">
           {error}
@@ -60,10 +61,13 @@ export function InvitePage() {
               </button>
             </div>
           ) : (
-            <p className="muted">This invite is no longer pending. <Link to="/">Return home</Link>.</p>
+            <p className="muted">
+              This invite is no longer pending. <Link to="/">Return home</Link>.
+            </p>
           )}
         </>
       )}
+      </div>
     </section>
   );
 }

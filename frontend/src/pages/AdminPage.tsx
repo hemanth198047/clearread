@@ -118,21 +118,22 @@ export function AdminPage() {
 
   if (!auth.user && !auth.devBypass) {
     return (
-      <section className="panel access-panel">
-        <div className="page-header" style={{ border: 0, padding: 0, margin: 0 }}>
-          <div>
-            <p className="page-eyebrow">Operators</p>
-            <h1>Workspace admin</h1>
-            <p className="lede">Sign in as a workspace admin to manage settings, invites, and jobs.</p>
+      <section className="auth-stage">
+        <div className="auth-stage-panel access-panel">
+          <p className="page-eyebrow">Operators</p>
+          <h1 className="auth-stage-brand">
+            ClearRead<span>.</span>
+          </h1>
+          <h2>Workspace admin</h2>
+          <p className="lede">Sign in as a workspace admin to manage settings, invites, and jobs.</p>
+          <div className="access-actions">
+            <button type="button" onClick={() => void auth.login()}>
+              Sign in
+            </button>
+            <Link className="button secondary" to="/">
+              Home
+            </Link>
           </div>
-        </div>
-        <div className="access-actions">
-          <button type="button" onClick={() => void auth.login()}>
-            Sign in
-          </button>
-          <Link className="button secondary" to="/">
-            Home
-          </Link>
         </div>
       </section>
     );

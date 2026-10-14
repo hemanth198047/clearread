@@ -1,6 +1,6 @@
-# ClearRead ![version](https://img.shields.io/badge/version-v1.2.2-1e293b)
+# ClearRead ![version](https://img.shields.io/badge/version-v1.2.3-1e293b)
 
-**ClearRead v1.2.2** (temporary product name; branding is configurable).  
+**ClearRead v1.2.3** (temporary product name; branding is configurable).  
 Turns Markdown and plain text into structured, accessible reading experiences — **preserves originals**, **no AI required** for the core path, and **honest format support** via a capability registry. Preferred local folders + Library file menu (browser File System Access).
 
 **Repository:** [`hemanth198047/clearread`](https://github.com/hemanth198047/clearread) (formerly `mdbeautifier`; GitHub redirects). Clone / remote notes: [docs/ops/repo-rename.md](docs/ops/repo-rename.md).

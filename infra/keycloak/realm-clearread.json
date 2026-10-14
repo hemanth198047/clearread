@@ -9,6 +9,10 @@
   "resetPasswordAllowed": true,
   "editUsernameAllowed": false,
   "sslRequired": "none",
+  "loginTheme": "clearread",
+  "accountTheme": "keycloak.v2",
+  "emailTheme": "keycloak.v2",
+
   "clients": [
     {
       "clientId": "clearread-spa",

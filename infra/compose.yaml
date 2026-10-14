@@ -93,6 +93,8 @@ services:
       # Path is relative to this compose file (infra/keycloak/…).
       - clearread_keycloak:/opt/keycloak/data
       - ./keycloak/realm-clearread.json:/opt/keycloak/data/import/realm-clearread.json:ro
+      # Custom login theme (Rebeautifier slate/amber). See keycloak/theme/clearread/README.md.
+      - ./keycloak/theme:/opt/keycloak/themes
     ports:
       - "${CLEARREAD_KEYCLOAK_PORT:-8081}:8081"
       # Management /health (not the SPA port). Default 9002 avoids clashing with S3 host :9000.
